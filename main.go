@@ -7,25 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Stream 结构体用于管理每个数据流
 type Stream struct {
 	mu          sync.Mutex    // 保证并发安全的互斥锁
 	subscribers []chan []byte // 所有订阅者的通道列表
-	data        []byte        // 保存最新的数据（原始字节）
-}
-
-type Event struct {
-	// Events are pushed to this channel by the main events-gathering routine
-	Message chan []byte
-
-	// New client connections
-	NewClients chan chan []byte
-
-	// Closed client connections
-	ClosedClients chan chan []byte
-
-	// Total client connections
-	TotalClients map[chan []byte]bool
+	history     [][]byte      // 历史数据
 }
 
 var (
@@ -54,7 +39,7 @@ func main() {
 		c.Status(http.StatusCreated)
 	})
 
-	// 接收数据推送
+	// 接收数据端点
 	r.POST("/:name", func(c *gin.Context) {
 		name := c.Param("name")
 
@@ -74,14 +59,12 @@ func main() {
 			return
 		}
 
-		// 更新数据并通知所有订阅者
 		stream.mu.Lock()
-		stream.data = data
-		// 向所有订阅者广播
 		for _, ch := range stream.subscribers {
 			ch <- data
 		}
 		stream.mu.Unlock()
+		stream.history = append(stream.history, data)
 
 		c.Status(http.StatusOK)
 	})
@@ -108,10 +91,12 @@ func main() {
 		// 创建新订阅者通道
 		ch := make(chan []byte)
 		stream.mu.Lock()
-		// 发送当前最新数据
-		if len(stream.data) > 0 {
-			c.SSEvent("message", stream.data)
-			c.Writer.Flush()
+		// 发送历史数据
+		if len(stream.history) > 0 {
+			for _, data := range stream.history {
+				c.SSEvent("message", data)
+				c.Writer.Flush()
+			}
 		}
 		// 注册订阅者
 		stream.subscribers = append(stream.subscribers, ch)
