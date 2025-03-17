@@ -21,6 +21,11 @@ var (
 func main() {
 	r := gin.Default()
 
+	// Default data endpoint
+	streams["data"] = &Stream{
+		subscribers: make([]chan []byte, 0),
+	}
+
 	// 创建新的数据端点
 	r.POST("/create/:name", func(c *gin.Context) {
 		name := c.Param("name")
@@ -129,5 +134,5 @@ func main() {
 		}
 	})
 
-	r.Run("9012")
+	r.Run(":9012")
 }
