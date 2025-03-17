@@ -13,7 +13,7 @@ from faker import Faker
 
 import logging
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = "http://localhost:9012"
 TEST_STREAM = "pytest-stream"
 
 
@@ -45,7 +45,7 @@ def backend_server():
     max_wait = 10
     for _ in range(max_wait):
         try:
-            requests.get("http://localhost:8080/health")
+            requests.get(f"{BASE_URL}/health")
             break
         except requests.ConnectionError:
             time.sleep(1)
@@ -72,6 +72,18 @@ def test_stream_creation():
     # create conflict
     conflict_resp = requests.post(f"{BASE_URL}/create/{TEST_STREAM}")
     assert conflict_resp.status_code == HTTPStatus.CONFLICT
+
+def test_default_stream():
+    """test default stream"""
+    default = "data"
+
+    data = mock_data()
+
+    resp = requests.post(f"{BASE_URL}/{default}", json=data)
+    assert resp.status_code == HTTPStatus.OK
+
+    client = SSEClient(f"{BASE_URL}/{default}")
+    assert json.loads(next(client).data) == data
 
 
 def test_data_posting(mock_historic_data):
