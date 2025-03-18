@@ -36,7 +36,7 @@ def mock_historic_data():
 def backend_server():
     """start the go server"""
     proc = subprocess.Popen(
-        ["go", "run", "../cmd/main.go"],
+        ["go", "run", "../cogmoteGO.go"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
