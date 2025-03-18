@@ -1,4 +1,4 @@
-module github.com/Ccccraz/puremote_server
+module github.com/Ccccraz/cogmoteGO
 
 go 1.24.1
 
