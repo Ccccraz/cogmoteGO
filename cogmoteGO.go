@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +19,12 @@ var (
 	streamsMu sync.RWMutex               // 保护streams的读写锁
 )
 
+// TODO: Add TrustedProxies
 func main() {
+	if envMode := os.Getenv("GIN_MODE"); envMode == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	r := gin.Default()
 
 	// Default data endpoint
