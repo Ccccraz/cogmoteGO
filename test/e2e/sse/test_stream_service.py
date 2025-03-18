@@ -14,7 +14,7 @@ from faker import Faker
 import logging
 
 BASE_URL = "http://localhost:9012"
-TEST_STREAM = "pytest-stream"
+TEST_STREAM = {"name": "pytest-stream"}
 
 
 def mock_data():
@@ -66,12 +66,13 @@ def test_stream_creation():
     """test stream creation"""
 
     # create success
-    resp = requests.post(f"{BASE_URL}/create/{TEST_STREAM}")
+    resp = requests.post(f"{BASE_URL}/create", json=TEST_STREAM)
     assert resp.status_code == HTTPStatus.CREATED
 
     # create conflict
-    conflict_resp = requests.post(f"{BASE_URL}/create/{TEST_STREAM}")
+    conflict_resp = requests.post(f"{BASE_URL}/create", json=TEST_STREAM)
     assert conflict_resp.status_code == HTTPStatus.CONFLICT
+
 
 def test_default_stream():
     """test default stream"""
@@ -89,14 +90,14 @@ def test_default_stream():
 def test_data_posting(mock_historic_data):
     """test data posting"""
     for data in mock_historic_data:
-        resp = requests.post(f"{BASE_URL}/{TEST_STREAM}", json=data)
+        resp = requests.post(f"{BASE_URL}/{TEST_STREAM['name']}", json=data)
         assert resp.status_code == HTTPStatus.OK, "Failed to post data to stream"
 
 
 def test_historic_data_delivery(mock_historic_data):
     """test historic data delivery"""
 
-    client = SSEClient(f"{BASE_URL}/{TEST_STREAM}")
+    client = SSEClient(f"{BASE_URL}/{TEST_STREAM['name']}")
 
     # get historic messages
 
@@ -109,11 +110,11 @@ def test_historic_data_delivery(mock_historic_data):
 
 def test_realtime_update():
     """test realtime update"""
-    client = SSEClient(f"{BASE_URL}/{TEST_STREAM}")
+    client = SSEClient(f"{BASE_URL}/{TEST_STREAM['name']}")
 
     data = mock_data()
 
-    requests.post(f"{BASE_URL}/{TEST_STREAM}", json=data)
+    requests.post(f"{BASE_URL}/{TEST_STREAM['name']}", json=data)
 
     msgs = [json.loads(next(client).data) for _ in range(11)]
 
@@ -124,15 +125,15 @@ def test_realtime_update():
 def test_concurrent_subscriptions():
     """test concurrent subscriptions"""
 
-    test_name = "concurrent-subscriptions"
-    requests.post(f"{BASE_URL}/create/{test_name}")
+    test_name = {"name": "concurrent-subscriptions"}
+    requests.post(f"{BASE_URL}/create", json=test_name)
     logging.info(f"{test_name}: Successfully created {test_name} endpoint")
 
-    client1 = SSEClient(f"{BASE_URL}/{test_name}")
-    client2 = SSEClient(f"{BASE_URL}/{test_name}")
+    client1 = SSEClient(f"{BASE_URL}/{test_name['name']}")
+    client2 = SSEClient(f"{BASE_URL}/{test_name['name']}")
 
     data = mock_data()
-    requests.post(f"{BASE_URL}/{test_name}", json=data)
+    requests.post(f"{BASE_URL}/{test_name['name']}", json=data)
 
     assert json.loads(next(client1).data) == data
     assert json.loads(next(client2).data) == data

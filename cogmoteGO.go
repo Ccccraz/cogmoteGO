@@ -33,18 +33,28 @@ func main() {
 	}
 
 	// 创建新的数据端点
-	r.POST("/create/:name", func(c *gin.Context) {
-		name := c.Param("name")
+	r.POST("/create", func(c *gin.Context) {
+		var request struct {
+			Name string `json:"name" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "invalid request body",
+				"details": err.Error(),
+			})
+			return
+		}
 
 		streamsMu.Lock()
 		defer streamsMu.Unlock()
 
-		if _, exists := streams[name]; exists {
+		if _, exists := streams[request.Name]; exists {
 			c.JSON(http.StatusConflict, gin.H{"error": "stream already exists"})
 			return
 		}
 
-		streams[name] = &Stream{
+		streams[request.Name] = &Stream{
 			subscribers: make([]chan []byte, 0),
 		}
 		c.Status(http.StatusCreated)
