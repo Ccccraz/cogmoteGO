@@ -1,0 +1,57 @@
+name: auto release
+on:
+  push:
+#   push:
+#     tags:
+#       - "v*" # 触发条件：当推送 v 开头的 tag 时自动运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: windows_amd64
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            archive_type: zip
+          - target: linux_amd64
+            goos: linux
+            goarch: amd64
+            ext: ""
+            archive_type: tar.gz
+          - target: linux_arm64
+            goos: linux
+            goarch: arm64
+            ext: ""
+            archive_type: tar.gz
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          OUTPUT_DIR="build/${{ matrix.target }}"
+          mkdir -p "$OUTPUT_DIR"
+          go build -o "$OUTPUT_DIR/cogmoteGO${{ matrix.ext }}" .
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd "build/${{ matrix.target }}"
+          if [ "${{ matrix.archive_type }}" = "zip" ]; then
+            zip "../../dist/cogmoteGO-${{ matrix.target }}.zip" "cogmoteGO${{ matrix.ext }}"
+          else
+            tar -czvf "../../dist/cogmoteGO-${{ matrix.target }}.tar.gz" "cogmoteGO${{ matrix.ext }}"
+          fi
