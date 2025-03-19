@@ -54,8 +54,7 @@ def backend_server():
 
     yield
 
-    # clean up
-    proc.send_signal(signal.SIGTERM)
+    proc.terminate()
     try:
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
