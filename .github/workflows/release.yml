@@ -1,0 +1,86 @@
+name: auto release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: windows-amd64
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            archive_type: zip
+          - target: linux-amd64
+            goos: linux
+            goarch: amd64
+            ext: ""
+            archive_type: tar.gz
+          - target: linux-arm64
+            goos: linux
+            goarch: arm64
+            ext: ""
+            archive_type: tar.gz
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          OUTPUT_DIR="build/${{ matrix.target }}"
+          mkdir -p "$OUTPUT_DIR"
+          go build -o "$OUTPUT_DIR/cogmoteGO${{ matrix.ext }}" .
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd "build/${{ matrix.target }}"
+          TAG_NAME=${{ github.ref_name }}
+
+          FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
+
+          if [ "${{ matrix.archive_type }}" = "zip" ]; then
+            zip "../../dist/${FILENAME_BASE}.zip" "cogmoteGO${{ matrix.ext}}"
+          else
+            tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-${{ matrix.target }}
+          path: dist/
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
