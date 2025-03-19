@@ -1,9 +1,8 @@
 name: auto release
 on:
   push:
-#   push:
-#     tags:
-#       - "v*" # 触发条件：当推送 v 开头的 tag 时自动运行
+    tags:
+      - "v*"
 
 jobs:
   build:
@@ -50,8 +49,18 @@ jobs:
         run: |
           mkdir -p dist
           cd "build/${{ matrix.target }}"
+          TAG_NAME=${{ github.ref_name }}
+
+          FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
+
           if [ "${{ matrix.archive_type }}" = "zip" ]; then
-            zip "../../dist/cogmoteGO-${{ matrix.target }}.zip" "cogmoteGO${{ matrix.ext }}"
+            zip "../../dist/${FILENAME_BASE}.zip" "cogmoteGO${{ matrix.ext}}"
           else
-            tar -czvf "../../dist/cogmoteGO-${{ matrix.target }}.tar.gz" "cogmoteGO${{ matrix.ext }}"
+            tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
           fi
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*
