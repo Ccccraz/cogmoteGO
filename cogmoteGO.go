@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -81,10 +82,23 @@ func main() {
 		}
 
 		stream.mu.Lock()
+		wg := sync.WaitGroup{}
 		for _, ch := range stream.subscribers {
-			ch <- data
+			wg.Add(1)
+			go func(c chan []byte) {
+				defer wg.Done()
+
+				select {
+				case c <- data:
+				default:
+					log.Println("channel is full")
+				}
+			}(ch)
+
 		}
+		wg.Wait()
 		stream.mu.Unlock()
+
 		stream.history = append(stream.history, data)
 
 		c.Status(http.StatusOK)
