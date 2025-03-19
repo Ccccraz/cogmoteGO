@@ -63,7 +63,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-assets
+          name: release-asset-${{ matrix.target }}
           path: dist/
           retention-days: 1
 
@@ -77,8 +77,8 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: release-assets
           path: dist/
+          merge-multiple: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
