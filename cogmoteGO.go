@@ -123,8 +123,6 @@ func main() {
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Flush()
 
-		// 创建新订阅者通道
-		ch := make(chan []byte)
 		stream.mu.Lock()
 		// 发送历史数据
 		if len(stream.history) > 0 {
@@ -133,6 +131,10 @@ func main() {
 				c.Writer.Flush()
 			}
 		}
+
+		// 创建新订阅者通道
+		ch := make(chan []byte, 10)
+
 		// 注册订阅者
 		stream.subscribers = append(stream.subscribers, ch)
 		stream.mu.Unlock()
