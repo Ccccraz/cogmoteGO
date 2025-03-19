@@ -11,17 +11,17 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: windows_amd64
+          - target: windows-amd64
             goos: windows
             goarch: amd64
             ext: .exe
             archive_type: zip
-          - target: linux_amd64
+          - target: linux-amd64
             goos: linux
             goarch: amd64
             ext: ""
             archive_type: tar.gz
-          - target: linux_arm64
+          - target: linux-arm64
             goos: linux
             goarch: arm64
             ext: ""
