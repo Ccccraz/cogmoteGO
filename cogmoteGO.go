@@ -26,7 +26,12 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	if gin.Mode() == gin.DebugMode {
+		r.Use(gin.Logger())
+	}
 
 	// Default data endpoint
 	streams["data"] = &Stream{
