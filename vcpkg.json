@@ -1,0 +1,9 @@
+{
+  "dependencies": ["zeromq"],
+  "overrides": [
+    {
+      "name": "zeromq",
+      "version": "4.3.5#2"
+    }
+  ]
+}
