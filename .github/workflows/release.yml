@@ -8,7 +8,63 @@ on:
       - "v*"
 
 jobs:
+  build_for_linux:
+    strategy:
+      matrix:
+        include:
+          - target: linux-amd64
+            os: ubuntu-latest
+            ext: ""
+            archive_type: tar.gz
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+            ext: ""
+            archive_type: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install Dependencies on Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get upgrade -y
+          sudo apt-get install -y libzmq3-dev pkg-config
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: |
+          OUTPUT_DIR="build/${{ matrix.target }}"
+          mkdir -p "$OUTPUT_DIR"
+          go build -o "$OUTPUT_DIR/cogmoteGO${{ matrix.ext }}" .
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd "build/${{ matrix.target }}"
+          TAG_NAME=${{ github.ref_name }}
+
+          FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
+
+          tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-${{ matrix.target }}
+          path: dist/
+          retention-days: 1
+
   build_for_windows:
+    needs: "build_for_linux"
     runs-on: windows-latest
     env:
       target: windows-amd64
@@ -57,63 +113,9 @@ jobs:
           path: dist/
           retention-days: 1
 
-  build_for_linux:
-    strategy:
-      matrix:
-        include:
-          - target: linux-amd64
-            os: ubuntu-latest
-            ext: ""
-            archive_type: tar.gz
-          - target: linux-arm64
-            os: ubuntu-24.04-arm
-            ext: ""
-            archive_type: tar.gz
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Install Dependencies on Linux
-        run: |
-          apt-get update
-          apt-get upgrade -y
-          apt-get install -y libzmq3-dev pkg-config
-
-      - name: Build
-        env:
-          CGO_ENABLED: 1
-        run: |
-          OUTPUT_DIR="build/${{ matrix.target }}"
-          mkdir -p "$OUTPUT_DIR"
-          go build -o "$OUTPUT_DIR/cogmoteGO${{ matrix.ext }}" .
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cd "build/${{ matrix.target }}"
-          TAG_NAME=${{ github.ref_name }}
-
-          FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
-
-          tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-asset-${{ matrix.target }}
-          path: dist/
-          retention-days: 1
 
   release:
-    needs: build_for_linux
+    needs: "build_for_windows"
     runs-on: ubuntu-latest
     permissions:
       contents: write
