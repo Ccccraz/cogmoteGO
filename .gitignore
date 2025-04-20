@@ -1,5 +1,8 @@
 # Custom
 bin/
+.env*
+.vscode/
+vcpkg_installed/
 
 # Created by https://www.toptal.com/developers/gitignore/api/go
 # Edit at https://www.toptal.com/developers/gitignore?templates=go
