@@ -1,4 +1,4 @@
-name: auto release
+name: build and release
 
 on:
   push:
@@ -6,26 +6,12 @@ on:
       - "v*"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - target: windows-amd64
-            goos: windows
-            goarch: amd64
-            ext: .exe
-            archive_type: zip
-          - target: linux-amd64
-            goos: linux
-            goarch: amd64
-            ext: ""
-            archive_type: tar.gz
-          - target: linux-arm64
-            goos: linux
-            goarch: arm64
-            ext: ""
-            archive_type: tar.gz
+  build_for_windows:
+    runs-on: windows-latest
+    env:
+      target: windows-amd64
+      ext: .exe
+      archive_type: zip
 
     steps:
       - name: Checkout Code
@@ -36,11 +22,72 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install Dependencies on Windows with vcpkg
+        shell: pwsh
+        run: vcpkg install
+
+      - name: Build on Windows
+        shell: pwsh
+        env:
+          CGO_ENABLED: 1
+          CGO_CFLAGS: "-I${{ github.workspace }}/vcpkg_installed/x64-windows/include"
+          CGO_LDFLAGS: "-L${{ github.workspace }}/vcpkg_installed/x64-windows/lib -l:libzmq-mt-4_3_5.lib"
+        run: |
+          $OUTPUT_DIR = "build\${{ env.target }}"
+          New-Item -ItemType Directory -Path $OUTPUT_DIR -Force | Out-Null
+          go build -o "$OUTPUT_DIR\cogmoteGO${{ env.ext }}" .
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $TAG_NAME = "${{ github.ref_name }}"
+          $BUILD_DIR = "build/${{ env.target }}"
+          $DIST_DIR = "dist"
+          $FILENAME_BASE = "cogmoteGO-${{ env.target }}-$TAG_NAME.${{ env.archive_type }}"
+          New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
+
+          Compress-Archive -Path "$BUILD_DIR/cogmoteGO${{ env.ext }}" -DestinationPath "$DIST_DIR/$FILENAME_BASE" -Force
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-${{ env.target }}
+          path: dist/
+          retention-days: 1
+
+  build_for_linux:
+    strategy:
+      matrix:
+        include:
+          - target: linux-amd64
+            os: ubuntu-latest
+            ext: ""
+            archive_type: tar.gz
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+            ext: ""
+            archive_type: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install Dependencies on Linux
+        run: |
+          apt-get update
+          apt-get upgrade -y
+          apt-get install -y libzmq3-dev pkg-config
+
       - name: Build
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
         run: |
           OUTPUT_DIR="build/${{ matrix.target }}"
           mkdir -p "$OUTPUT_DIR"
@@ -54,11 +101,7 @@ jobs:
 
           FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
 
-          if [ "${{ matrix.archive_type }}" = "zip" ]; then
-            zip "../../dist/${FILENAME_BASE}.zip" "cogmoteGO${{ matrix.ext}}"
-          else
-            tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
-          fi
+          tar -czvf "../../dist/${FILENAME_BASE}.tar.gz" "cogmoteGO${{ matrix.ext}}"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -68,7 +111,7 @@ jobs:
           retention-days: 1
 
   release:
-    needs: build
+    needs: build_for_linux
     runs-on: ubuntu-latest
     permissions:
       contents: write
