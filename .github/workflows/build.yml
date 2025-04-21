@@ -1,4 +1,4 @@
-name: build and release
+name: build
 
 on:
   push:
@@ -124,22 +124,3 @@ jobs:
           name: release-asset-${{ env.target }}
           path: dist/
           retention-days: 1
-
-  release:
-    needs: "build_for_windows"
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: dist/
-          merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          prerelease: ${{ contains(github.ref_name, '-') }}
