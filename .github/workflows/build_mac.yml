@@ -1,0 +1,52 @@
+name: build for mac
+
+on:
+  push:
+
+jobs:
+  build_for_windows:
+    runs-on: macOS-latest
+    env:
+      target: darwin-arm64
+      ext: ""
+      archive_type: tar.gz
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install Dependencies
+        run: |
+          brew install pkg-config zmq
+
+      - name: Build on Mac
+        env:
+          CGO_ENABLED: 1
+          # CGO_CFLAGS: "-I/opt/homebrew/include"
+          # CGO_LDFLAGS: "-L/opt/homebrew/lib -lzmq"
+        run: |
+          OUTPUT_DIR="build/${target}"
+          mkdir -p "${OUTPUT_DIR}"
+          go build -o "${OUTPUT_DIR}/cogmoteGO${ext}" .
+
+      - name: Package
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          BUILD_DIR="build/${target}"
+          DIST_DIR="dist"
+          FILENAME_BASE="cogmoteGO-${target}-${TAG_NAME}.${archive_type}"
+          mkdir -p "${DIST_DIR}"
+
+          tar -czf "${DIST_DIR}/${FILENAME_BASE}" -C "${BUILD_DIR}" .
+
+      # - name: Upload Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: release-asset-${{ env.target }}
+      #     path: dist/
+      #     retention-days: 1
