@@ -1,9 +1,12 @@
 package broadcast
 
 import (
+	"context"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +25,7 @@ var (
 
 // add default data endpoint
 func init() {
-	broadEndpoints["data"] = &BroadcastEndpoint{
+	broadEndpoints["default"] = &BroadcastEndpoint{
 		subscribers: make([]chan []byte, 0),
 	}
 }
@@ -155,10 +158,81 @@ func SubscribeDataEndpoint(c *gin.Context) {
 	}
 }
 
+type MockTrialData struct {
+	TrialId        uint   `json:"trial_id"`
+	TrialStartTime int64  `json:"trial_start_time"`
+	TrialStopTime  int64  `json:"trial_stop_time"`
+	TrialResult    string `json:"trial_result"`
+}
+
+func GenMockTrialData(ctx context.Context, ch chan<- MockTrialData) {
+	rand.NewSource(time.Now().UnixNano())
+
+	results := []string{"correct", "incorrect", "timeout"}
+
+	var trialId uint = 1
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+
+			data := MockTrialData{
+				TrialId:        trialId,
+				TrialStartTime: time.Now().Unix(),
+				TrialStopTime:  0,
+				TrialResult:    results[rand.Intn(len(results))],
+			}
+
+			time.Sleep(time.Duration(rand.Intn(3)+1) * time.Second)
+			data.TrialStopTime = time.Now().Unix()
+
+			trialId++
+
+			select {
+			case ch <- data:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+}
+
+func GetMockData(c *gin.Context) {
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
+
+	mockDataChan := make(chan MockTrialData, 10)
+	go GenMockTrialData(ctx, mockDataChan)
+
+	for {
+		select {
+		case data, ok := <-mockDataChan:
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+				return
+			}
+			c.SSEvent("message", data)
+			c.Writer.Flush()
+		case <-c.Writer.CloseNotify():
+			return
+		case <-c.Done():
+			return
+		}
+	}
+}
+
 func RegisterRoutes(r *gin.Engine) {
-	r.POST("/create", CreateBroadcastEndpoint)
-	r.POST("/:name", BroadcastData)
-	r.GET("/:name", headersMiddleware(), SubscribeDataEndpoint)
+	r.GET("/data")
+	r.POST("/data", CreateBroadcastEndpoint)
+
+	r.GET("/data/mock", headersMiddleware(), GetMockData)
+
+	r.GET("/data/default", headersMiddleware(), SubscribeDataEndpoint)
+	r.POST("/data/default", BroadcastData)
+
+	r.GET("/data/:name", headersMiddleware(), SubscribeDataEndpoint)
+	r.POST("/data/:name", BroadcastData)
 }
 
 func headersMiddleware() gin.HandlerFunc {
@@ -166,6 +240,7 @@ func headersMiddleware() gin.HandlerFunc {
 		c.Writer.Header().Set("Content-Type", "text/event-stream")
 		c.Writer.Header().Set("Cache-Control", "no-cache")
 		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("Transfer-Encoding", "chunked")
 		c.Writer.Flush()
 		c.Next()
 	}
