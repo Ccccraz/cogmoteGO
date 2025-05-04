@@ -3,16 +3,17 @@ package cmdproxy
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	zmq "github.com/pebbe/zmq4"
 )
 
 // Endpoint is the request body for starting the command proxy
 type Endpoint struct {
+	NickName string `json:"nickname" binding:"required"`
 	Hostname string `json:"hostname" binding:"required"`
 	Port     uint   `json:"port" binding:"required"`
 }
@@ -32,12 +33,6 @@ type ReqClient struct {
 	context  *zmq.Context
 	socket   *zmq.Socket
 	mutex    sync.Mutex
-}
-
-type CreateCmdProxyResponse struct {
-	ID       string `json:"id"`
-	Hostname string `json:"hostname"`
-	Port     uint   `json:"port"`
 }
 
 var (
@@ -65,26 +60,32 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 		return nil, fmt.Errorf("failed to connect to server: %v", err)
 	}
 
-	var request = HandshakeREQ{
-		Request: "Hello",
-	}
-	requestJson, _ := json.Marshal(request)
-	s.SendBytes(requestJson, 0)
-
-	msgJson, err := s.RecvBytes(0)
-	var msg HandshakeREP
-	json.Unmarshal([]byte(msgJson), &msg)
-
-	if err != nil || msg.Response != "World" {
-		return nil, fmt.Errorf("failed to receive message from server: %v", err)
-	}
-
 	return &ReqClient{
 		hostname: hostname,
 		port:     port,
 		context:  zctx,
 		socket:   s,
 	}, nil
+}
+
+func (r *ReqClient) handShake() error {
+	request := HandshakeREQ{
+		Request: "Hello",
+	}
+	requestJson, _ := json.Marshal(request)
+	r.socket.SendBytes(requestJson, 0)
+
+	msgJson, err := r.socket.RecvBytes(0)
+	var msg HandshakeREP
+	json.Unmarshal([]byte(msgJson), &msg)
+
+	log.Printf("Received message from server: %s\n", msg.Response)
+
+	if err != nil || msg.Response != "World" {
+		return fmt.Errorf("failed to receive message from server: %v", err)
+	}
+
+	return nil
 }
 
 // Send a message to the server and return the response
@@ -144,23 +145,33 @@ func createCmdProxy(c *gin.Context) {
 	}
 
 	reqClientMapMutex.Lock()
-	id := uuid.New().String()
-	reqClientMap[id] = reqClient
+	if _, exist := reqClientMap[endpoint.NickName]; exist {
+		c.JSON(http.StatusConflict, gin.H{"error": "Command proxy already started"})
+		return
+	} else {
+		log.Printf("Starting command proxy for %s\n", endpoint.NickName)
+		reqClientMap[endpoint.NickName] = reqClient
+	}
 	reqClientMapMutex.Unlock()
 
-	var reqClientResponse = CreateCmdProxyResponse{
-		ID:       id,
-		Hostname: endpoint.Hostname,
-		Port:     endpoint.Port,
-	}
+	go func() {
+		if err := reqClient.handShake(); err != nil {
 
-	c.JSON(http.StatusCreated, reqClientResponse)
+			reqClientMapMutex.Lock()
+			delete(reqClientMap, endpoint.NickName)
+			reqClientMapMutex.Unlock()
+
+			reqClient.socket.Close()
+		}
+	}()
+
+	c.Status(http.StatusCreated)
 }
 
 // Forward a command to the server and return the response
 func sendCmd(c *gin.Context) {
 	reqClientMapMutex.RLock()
-	reqClient, exist := reqClientMap[c.Param("id")]
+	reqClient, exist := reqClientMap[c.Param("nickname")]
 	reqClientMapMutex.RUnlock()
 
 	if !exist {
@@ -185,5 +196,5 @@ func sendCmd(c *gin.Context) {
 
 func RegisterRoutes(r *gin.Engine) {
 	r.POST("/cmds/proxies", createCmdProxy)
-	r.POST("/cmds/proxies/:id", sendCmd)
+	r.POST("/cmds/proxies/:nickname", sendCmd)
 }
