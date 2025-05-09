@@ -2,6 +2,12 @@
 
 cogmoteGO change log.
 
+## [0.1.3-alpha.10] - 2025-05-09
+
+### 🐛 Bug Fixes
+
+- :bug: select correct version for changelog
+
 ## [0.1.3-alpha.9] - 2025-05-09
 
 ### 🐛 Bug Fixes
