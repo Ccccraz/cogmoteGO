@@ -23,7 +23,7 @@ jobs:
         id: reader
         uses: mindsers/changelog-reader-action@v2
         with:
-          version: ${{ github.event.workflow_run.head_branch }}
+          version: 0.1.3-alpha.12
           path: ./CHANGELOG.md
 
       - name: Download Artifact
