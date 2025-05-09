@@ -28,6 +28,7 @@ cogmoteGO change log.
 
 - Test
 - :bug: get correct tag name
+- Update changelog and fix release issues
 
 ## [0.1.3-alpha.4] - 2025-05-04
 
