@@ -23,7 +23,6 @@ jobs:
         id: reader
         uses: mindsers/changelog-reader-action@v2
         with:
-          validation_level: warn
           version: ${{ github.event.workflow_run.head_branch }}
           path: ./CHANGELOG.md
 
