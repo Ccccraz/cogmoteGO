@@ -19,6 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Get Changelog Entry
+        id: reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_level: warn
+          version: ${{ github.event.workflow_run.head_branch }}
+          path: ./CHANGELOG.md
+
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
@@ -30,7 +38,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: CHANGELOG.md
+          body: ${{ steps.reader.outputs.changes }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
           files: dist/*
           prerelease: ${{ contains(github.event.workflow_run.head_branch, '-') }}

@@ -1,6 +1,36 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+cogmoteGO change log.
+
+## [0.1.3-alpha.9] - 2025-05-09
+
+### 🐛 Bug Fixes
+
+- :bug: fix permission problem for changelog
+
+## [0.1.3-alpha.8] - 2025-05-09
+
+### 🐛 Bug Fixes
+
+- :bug: fix changelog path problem
+
+## [0.1.3-alpha.7] - 2025-05-09
+
+### 🐛 Bug Fixes
+
+- :bug: fix permission problem for changelog
+
+## [0.1.3-alpha.6] - 2025-05-09
+
+### 🐛 Bug Fixes
+
+- :bug: fix permission problem for changlog realse
+
+## [0.1.3-alpha.5] - 2025-05-09
+
+### 🚀 Features
+
+- :sparkles: add git-cliff for generate changelog
 
 ## [0.1.3-alpha.4] - 2025-05-04
 
