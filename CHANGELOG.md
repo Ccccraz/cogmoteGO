@@ -2,6 +2,12 @@
 
 cogmoteGO change log.
 
+## [0.1.3-alpha.11] - 2025-05-09
+
+### 📚 Documentation
+
+- :loud_sound:
+
 ## [0.1.3-alpha.10] - 2025-05-09
 
 ### 🐛 Bug Fixes
