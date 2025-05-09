@@ -6,7 +6,7 @@ cogmoteGO change log.
 
 ### 📚 Documentation
 
-- :memo: named release
+- 📝 named release (#15)
 
 
 
