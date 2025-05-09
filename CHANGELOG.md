@@ -2,64 +2,32 @@
 
 cogmoteGO change log.
 
-## [0.1.3-alpha.13] - 2025-05-09
-
-### ⚙️ Miscellaneous Tasks
-
-- Test
-
-## [0.1.3-alpha.12] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: remove validation_level in release.yml
-
-### 📚 Documentation
-
-- :loud_sound: update changelog
-
-## [0.1.3-alpha.11] - 2025-05-09
-
-### 📚 Documentation
-
-- :loud_sound:
-- :loud_sound:
-
-## [0.1.3-alpha.10] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: select correct version for changelog
-
-## [0.1.3-alpha.9] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: fix permission problem for changelog
-
-## [0.1.3-alpha.8] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: fix changelog path problem
-
-## [0.1.3-alpha.7] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: fix permission problem for changelog
-
-## [0.1.3-alpha.6] - 2025-05-09
-
-### 🐛 Bug Fixes
-
-- :bug: fix permission problem for changlog realse
-
 ## [0.1.3-alpha.5] - 2025-05-09
 
 ### 🚀 Features
 
 - :sparkles: add git-cliff for generate changelog
+
+### 🐛 Bug Fixes
+
+- :bug: fix permission problem for changlog realse
+- :bug: fix permission problem for changelog
+- :bug: fix changelog path problem
+- :bug: fix permission problem for changelog
+- :bug: select correct version for changelog
+- :bug: remove validation_level in release.yml
+
+### 📚 Documentation
+
+- :loud_sound:
+- :loud_sound:
+- :loud_sound: update changelog
+- :loud_sound: test log
+
+### ⚙️ Miscellaneous Tasks
+
+- Test
+- :bug: get correct tag name
 
 ## [0.1.3-alpha.4] - 2025-05-04
 
