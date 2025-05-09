@@ -18,17 +18,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Get version from tag
         id: tag_name
         run: |
-          FULL_TAG="${{ github.event.workflow_run.event.ref }}"
-          VERSION="${FULL_TAG#refs/tags/v}"
+          echo "${{ github.event.workflow_run.head_branch }}"
 
-          TAG_MESSAGE=$(git tag -l --format='%(contents:subject)' v0.1.3-alpha.5)
+          FULL_TAG="${{ github.event.workflow_run.head_branch }}"
 
-          echo "tag_message=${TAG_MESSAGE}" >> $GITHUB_OUTPUT
+          echo ${FULL_TAG}
+
+          VERSION="${FULL_TAG#v}"
+
+          echo ${VERSION}
+
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' "${FULL_TAG}")
+
+          echo ${TAG_MESSAGE}
+
           echo "current_version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_message=${TAG_MESSAGE}" >> $GITHUB_OUTPUT
 
       - name: Get Changelog Entry
         id: reader
