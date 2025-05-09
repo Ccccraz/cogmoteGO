@@ -34,4 +34,3 @@ jobs:
           tag_name: ${{ github.event.workflow_run.head_branch }}
           files: dist/*
           prerelease: ${{ contains(github.event.workflow_run.head_branch, '-') }}
-          token: ${{ secrets.RELEASE  }}
