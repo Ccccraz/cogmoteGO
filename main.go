@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	alive "github.com/Ccccraz/cogmoteGO/internal"
 	"github.com/Ccccraz/cogmoteGO/internal/broadcast"
 	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
@@ -27,6 +28,7 @@ func main() {
 	broadcast.RegisterRoutes(r)
 	cmdproxy.RegisterRoutes(r)
 	health.RegisterRoutes(r)
+	alive.RegisterRoutes(r)
 
 	r.Run(":9012")
 }
