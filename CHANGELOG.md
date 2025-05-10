@@ -2,6 +2,16 @@
 
 cogmoteGO change log.
 
+## [0.1.3-alpha.7] - 2025-05-10
+
+### 🚀 Features
+
+- :sparkles: add GET /alive endpoint by @Ccccraz in [#16](https://github.com/Ccccraz/cogmoteGO/pull/16)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.3-alpha.6...v0.1.3-alpha.7
+
 ## [0.1.3-alpha.6] - 2025-05-09
 
 ### 📚 Documentation
@@ -13,7 +23,7 @@ cogmoteGO change log.
 
 ### ⚙️ Miscellaneous Tasks
 
-- :bug: fix release workflow tag handling
+- :bug: fix release workflow tag handling by @Ccccraz
 
 
 
