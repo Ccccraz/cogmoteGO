@@ -2,6 +2,16 @@
 
 cogmoteGO change log.
 
+## [0.1.3-alpha.8] - 2025-05-10
+
+### 🚀 Features
+
+- :sparkles: add DELETE endpoints for command proxies and improve error handling by @Ccccraz in [#17](https://github.com/Ccccraz/cogmoteGO/pull/17)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.3-alpha.7...v0.1.3-alpha.8
+
 ## [0.1.3-alpha.7] - 2025-05-10
 
 ### 🚀 Features
