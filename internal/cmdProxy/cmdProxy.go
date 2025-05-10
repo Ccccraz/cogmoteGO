@@ -2,6 +2,7 @@ package cmdproxy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -36,7 +37,6 @@ type ReqClient struct {
 }
 
 var (
-	reqClientOnce     sync.Once // sync.Once for initializing reqClient
 	reqClientMap      = make(map[string]*ReqClient)
 	reqClientMapMutex sync.RWMutex
 )
@@ -111,14 +111,27 @@ func (r *ReqClient) Close() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if r.socket != nil {
-		r.socket.Close()
+	defer func() {
 		r.socket = nil
+		r.context = nil
+	}()
+
+	var errs []error
+
+	if r.socket != nil {
+		if err := r.socket.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close socket: %w", err))
+		}
 	}
 
 	if r.context != nil {
-		r.context.Term()
-		r.context = nil
+		if err := r.context.Term(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to terminate context: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%d errors occurred: %v", len(errs), errors.Join(errs...))
 	}
 
 	return nil
@@ -133,35 +146,41 @@ func createCmdProxy(c *gin.Context) {
 		return
 	}
 
-	var reqClient *ReqClient
-	var reqInitErr error
-	reqClientOnce.Do(func() {
-		reqClient, reqInitErr = createREQ(endpoint.Hostname, endpoint.Port)
-	})
+	reqClientMapMutex.RLock()
+	_, exist := reqClientMap[endpoint.NickName]
+	reqClientMapMutex.RUnlock()
 
-	if reqInitErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": reqInitErr.Error()})
-		return
-	}
-
-	reqClientMapMutex.Lock()
-	if _, exist := reqClientMap[endpoint.NickName]; exist {
+	if exist {
 		c.JSON(http.StatusConflict, gin.H{"error": "Command proxy already started"})
 		return
-	} else {
-		log.Printf("Starting command proxy for %s\n", endpoint.NickName)
-		reqClientMap[endpoint.NickName] = reqClient
 	}
-	reqClientMapMutex.Unlock()
+
+	client, err := createREQ(endpoint.Hostname, endpoint.Port)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("Starting command proxy for %s\n", endpoint.NickName)
+
+	reqClientMapMutex.Lock()
+	defer reqClientMapMutex.Unlock()
+
+	if _, exist := reqClientMap[endpoint.NickName]; exist {
+		client.Close()
+		c.JSON(http.StatusConflict, gin.H{"error": "Command proxy already started"})
+		return
+	}
+	reqClientMap[endpoint.NickName] = client
 
 	go func() {
-		if err := reqClient.handShake(); err != nil {
+		if err := client.handShake(); err != nil {
 
 			reqClientMapMutex.Lock()
 			delete(reqClientMap, endpoint.NickName)
 			reqClientMapMutex.Unlock()
 
-			reqClient.socket.Close()
+			client.socket.Close()
 		}
 	}()
 
@@ -194,7 +213,71 @@ func sendCmd(c *gin.Context) {
 	c.Data(http.StatusCreated, "application/json", result)
 }
 
+func DeleteAllCmdProxies(c *gin.Context) {
+	reqClientMapMutex.Lock()
+
+	if len(reqClientMap) == 0 {
+		reqClientMapMutex.Unlock()
+		c.JSON(http.StatusNotFound, gin.H{"error": "no command proxies found"})
+		return
+	}
+
+	// Create a copy of clients to close them outside the lock
+	clients := make([]*ReqClient, 0, len(reqClientMap))
+	for _, client := range reqClientMap {
+		clients = append(clients, client)
+	}
+
+	// Clear the map
+	reqClientMap = make(map[string]*ReqClient)
+	reqClientMapMutex.Unlock()
+
+	// Close all clients outside the lock
+	var wg sync.WaitGroup
+	for _, client := range clients {
+		wg.Add(1)
+		go func(c *ReqClient) {
+			defer wg.Done()
+			if err := c.Close(); err != nil {
+				log.Printf("Failed to close client: %v", err)
+			}
+		}(client)
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func DeleteCmdProxy(c *gin.Context) {
+	nickname := c.Param("nickname")
+	if nickname == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname is required"})
+		return
+	}
+
+	reqClientMapMutex.RLock()
+	client, exist := reqClientMap[nickname]
+	reqClientMapMutex.RUnlock()
+
+	if !exist {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("command proxy for '%s' not found", nickname)})
+		return
+	}
+
+	reqClientMapMutex.Lock()
+	defer reqClientMapMutex.Unlock()
+	delete(reqClientMap, nickname)
+
+	if err := client.Close(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
 func RegisterRoutes(r *gin.Engine) {
 	r.POST("/cmds/proxies", createCmdProxy)
 	r.POST("/cmds/proxies/:nickname", sendCmd)
+	r.DELETE("/cmds/proxies", DeleteAllCmdProxies)
+	r.DELETE("/cmds/proxies/:nickname", DeleteCmdProxy)
 }
