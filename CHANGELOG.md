@@ -2,6 +2,16 @@
 
 cogmoteGO change log.
 
+## [0.1.3] - 2025-05-11
+
+### 🚀 Features
+
+- :sparkles: add experiments module with CRUD and start/stop endpoints by @Ccccraz in [#18](https://github.com/Ccccraz/cogmoteGO/pull/18)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.3-alpha.8...v0.1.3
+
 ## [0.1.3-alpha.8] - 2025-05-10
 
 ### 🚀 Features
