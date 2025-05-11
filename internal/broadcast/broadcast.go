@@ -30,8 +30,22 @@ func init() {
 	}
 }
 
+func GetBroadcasts(c *gin.Context) {
+	broadEndpointsMu.RLock()
+	defer broadEndpointsMu.RUnlock()
+
+	keys := make([]string, 0, len(broadEndpoints))
+	for k := range broadEndpoints {
+		keys = append(keys, k)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bordercast_endpoints": keys,
+	})
+}
+
 // create new data broadcast endpoint
-func CreateBroadcastEndpoint(c *gin.Context) {
+func CreateBroadcast(c *gin.Context) {
 	var request struct {
 		Name string `json:"name" binding:"required"`
 	}
@@ -102,7 +116,7 @@ func BroadcastData(c *gin.Context) {
 }
 
 // Subscribe to the broadcast endpoint and receive updates via Server-Sent Events (SSE)
-func SubscribeDataEndpoint(c *gin.Context) {
+func SubscribeBroadcast(c *gin.Context) {
 	name := c.Param("name")
 
 	broadEndpointsMu.RLock()
@@ -222,17 +236,40 @@ func GetMockData(c *gin.Context) {
 	}
 }
 
+func DeleteBroadcast(c *gin.Context) {
+	name := c.Param("name")
+
+	broadEndpointsMu.Lock()
+	defer broadEndpointsMu.Unlock()
+
+	if _, exists := broadEndpoints[name]; !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "endpoint not found"})
+		return
+	}
+
+	delete(broadEndpoints, name)
+
+	c.Status(http.StatusOK)
+}
+
 func RegisterRoutes(r *gin.Engine) {
-	r.GET("/data")
-	r.POST("/data", CreateBroadcastEndpoint)
+	r.GET("/broadcast/data", GetBroadcasts)
+	r.POST("/broadcast/data", CreateBroadcast)
 
-	r.GET("/data/mock", headersMiddleware(), GetMockData)
+	r.GET("/broadcast/data/mock", headersMiddleware(), GetMockData)
 
-	r.GET("/data/default", headersMiddleware(), SubscribeDataEndpoint)
-	r.POST("/data/default", BroadcastData)
+	r.GET("/broadcast/data/default", headersMiddleware(), func(c *gin.Context) {
+		c.Params = append(c.Params, gin.Param{Key: "name", Value: "default"})
+		SubscribeBroadcast(c)
+	})
+	r.POST("/broadcast/data/default", func(c *gin.Context) {
+		c.Params = append(c.Params, gin.Param{Key: "name", Value: "default"})
+		BroadcastData(c)
+	})
 
-	r.GET("/data/:name", headersMiddleware(), SubscribeDataEndpoint)
-	r.POST("/data/:name", BroadcastData)
+	r.GET("/broadcast/data/:name", headersMiddleware(), SubscribeBroadcast)
+	r.POST("/broadcast/data/:name", BroadcastData)
+	r.DELETE("/broadcast/data/:name", DeleteBroadcast)
 }
 
 func headersMiddleware() gin.HandlerFunc {
