@@ -2,6 +2,16 @@
 
 cogmoteGO change log.
 
+## [0.1.4] - 2025-05-11
+
+### 🐛 Bug Fixes
+
+- :ambulance: fix the broadcast module by @Ccccraz in [#19](https://github.com/Ccccraz/cogmoteGO/pull/19)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.3...v0.1.4
+
 ## [0.1.3] - 2025-05-11
 
 ### 🚀 Features
