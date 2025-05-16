@@ -40,7 +40,7 @@ func GetBroadcasts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"bordercast_endpoints": keys,
+		"broadcast_endpoints": keys,
 	})
 }
 
