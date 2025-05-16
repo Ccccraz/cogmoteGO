@@ -137,6 +137,28 @@ func (r *ReqClient) Close() error {
 	return nil
 }
 
+func GetAllCmdProxies(c *gin.Context) {
+	reqClientMapMutex.RLock()
+	defer reqClientMapMutex.RUnlock()
+
+	if len(reqClientMap) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no command proxies found"})
+		return
+	}
+
+	var reqClientInfos []Endpoint
+
+	for nickname, reqClient := range reqClientMap {
+		reqClientInfos = append(reqClientInfos, Endpoint{
+			NickName: nickname,
+			Hostname: reqClient.hostname,
+			Port:     reqClient.port,
+		})
+	}
+
+	c.JSON(http.StatusOK, reqClientInfos)
+}
+
 // Create a REQ client
 func createCmdProxy(c *gin.Context) {
 	var endpoint Endpoint
@@ -276,6 +298,7 @@ func DeleteCmdProxy(c *gin.Context) {
 }
 
 func RegisterRoutes(r *gin.Engine) {
+	r.GET("/cmds/proxies", GetAllCmdProxies)
 	r.POST("/cmds/proxies", createCmdProxy)
 	r.POST("/cmds/proxies/:nickname", sendCmd)
 	r.DELETE("/cmds/proxies", DeleteAllCmdProxies)
