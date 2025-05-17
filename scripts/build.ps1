@@ -59,7 +59,7 @@ catch {
 function Get-VersionInfo {
     if ($CI) {
         # CI mode: use provided version info
-        $cleanVersion = $Version -replace '^v([\d.]+).*', '$1'
+        $cleanVersion = $Version -replace '^v', ''
         return @{
             Version = $cleanVersion
             Commit  = $Commit
@@ -75,7 +75,7 @@ function Get-VersionInfo {
             }
         }
 
-        $cleanVersion = $gitDesc -replace '^v([\d.]+).*', '$1'
+        $cleanVersion = $gitDesc -replace '^v', ''
         return @{
             Version = $cleanVersion
             Commit  = git rev-parse --short HEAD

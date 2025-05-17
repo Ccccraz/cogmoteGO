@@ -93,7 +93,7 @@ mkdir -p "$OUTPUT_DIR" "$DIST_DIR" || {
 function get_version_info {
     if [ "$CI" = true ]; then
         # CI mode: use provided version info
-        CLEAN_VERSION=$(echo "$VERSION" | sed -E 's/^v([0-9.]+).*/\1/')
+        CLEAN_VERSION=$(echo "$VERSION" | sed -E 's/^v//')
         echo "$CLEAN_VERSION $COMMIT"
     else
         # Local mode: get version info from git
@@ -101,7 +101,7 @@ function get_version_info {
         if [ $? -ne 0 ] || [ -z "$GIT_DESC" ]; then
             echo "dev none"
         else
-            CLEAN_VERSION=$(echo "$GIT_DESC" | sed -E 's/^v([0-9.]+).*/\1/')
+            CLEAN_VERSION=$(echo "$GIT_DESC" | sed -E 's/^v//')
             COMMIT_SHORT=$(git rev-parse --short HEAD)
             echo "$CLEAN_VERSION $COMMIT_SHORT"
         fi
