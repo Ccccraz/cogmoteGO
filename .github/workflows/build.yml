@@ -12,16 +12,12 @@ jobs:
         include:
           - target: linux-amd64
             os: ubuntu-latest
-            ext: ""
-            archive_type: tar.gz
           - target: linux-arm64
             os: ubuntu-24.04-arm
-            ext: ""
-            archive_type: tar.gz
           - target: darwin-arm64
             os: macos-latest
-            ext: ""
-            archive_type: tar.gz
+          - target: windows-amd64
+            os: windows-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -36,7 +32,6 @@ jobs:
 
       - name: Install Dependencies on Linux
         if: startsWith(matrix.target, 'linux-')
-        # if: matrix.target == 'linux-amd64' || matrix.target == 'linux-arm64'
         run: |
           sudo apt-get update
           sudo apt-get install -y libzmq3-dev pkg-config
@@ -46,93 +41,40 @@ jobs:
         run: |
           brew install zeromq
 
-      - name: Build
-        env:
-          CGO_ENABLED: 1
-        run: |
-          OUTPUT_DIR="build/${{ matrix.target }}"
-          mkdir -p "$OUTPUT_DIR"
-          go build -o "$OUTPUT_DIR/cogmoteGO${{ matrix.ext }}" .
-
-      - name: Package
-        run: |
-          TAG_NAME=${{ github.ref_name }}
-          BUILD_DIR="build/${{ matrix.target }}"
-          DIST_DIR="dist"
-          FILENAME_BASE="cogmoteGO-${{ matrix.target }}-${TAG_NAME}"
-          mkdir -p "$DIST_DIR"
-
-          tar -czf "$DIST_DIR/$FILENAME_BASE.${{ matrix.archive_type }}" -C "$BUILD_DIR" .
-
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-asset-${{ matrix.target }}
-          path: dist/
-          retention-days: 1
-
-  build_for_windows:
-    needs: "build_for_linux_mac"
-    runs-on: windows-latest
-    env:
-      target: windows-amd64
-      ext: .exe
-      archive_type: zip
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Export GitHub Actions cache environment variables
+      - name: Export GitHub Actions cache environment variables for vcpkg
+        if: startsWith(matrix.target, 'windows-')
         uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Install Dependencies on Windows with vcpkg
+      - name: Install Dependencies on Windows
+        if: startsWith(matrix.target, 'windows-')
         shell: pwsh
         run: vcpkg install
         env:
           VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
-      - name: Install Dependencies on Windows with vcpkg
-        shell: pwsh
-        run: vcpkg install
-
-      - name: Build on Windows
-        shell: pwsh
-        env:
-          CGO_ENABLED: 1
-          CGO_CFLAGS: "-I${{ github.workspace }}/vcpkg_installed/x64-windows/include"
-          CGO_LDFLAGS: "-L${{ github.workspace }}/vcpkg_installed/x64-windows/lib -l:libzmq-mt-4_3_5.lib"
+      - name: Build and Package on Linux and macOS
+        if: startsWith(matrix.target, 'linux-') || startsWith(matrix.target, 'darwin-')
         run: |
-          $OUTPUT_DIR = "build\${{ env.target }}"
-          New-Item -ItemType Directory -Path $OUTPUT_DIR -Force | Out-Null
-          go build -o "$OUTPUT_DIR\cogmoteGO${{ env.ext }}" .
+          chmod +x ${{ github.workspace }}/scripts/build.sh
+          SHORT_SHA=$(git rev-parse --short "${{ github.sha }}")
+          ${{ github.workspace }}/scripts/build.sh --ci \
+            --version "${{ github.ref_name}}" \
+            --commit "$SHORT_SHA"
 
-      - name: Package
+      - name: Build and Package on Windows
+        if: startsWith(matrix.target, 'windows-')
         shell: pwsh
         run: |
-          $TAG_NAME = "${{ github.ref_name }}"
-          $BUILD_DIR = "build/${{ env.target }}"
-          $DIST_DIR = "dist"
-          $FILENAME_BASE = "cogmoteGO-${{ env.target }}-$TAG_NAME.${{ env.archive_type }}"
-          New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
-
-          $DLL_PATH = "${{ github.workspace }}/vcpkg_installed/x64-windows/bin/libzmq-mt-4_3_5.dll"
-          Copy-Item -Path $DLL_PATH -Destination $BUILD_DIR
-          Compress-Archive -Path "$BUILD_DIR/*" -DestinationPath "$DIST_DIR/$FILENAME_BASE" -Force
+          $shortSha = git rev-parse --short "${{ github.sha }}"
+          ${{ github.workspace }}\scripts\build.ps1 --ci --version "${{ github.ref_name }}" --commit $shortSha
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-asset-${{ env.target }}
+          name: release-asset-${{ matrix.target }}
           path: dist/
           retention-days: 1
