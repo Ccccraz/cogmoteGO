@@ -19,7 +19,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Get version from tag
         id: tag_name
@@ -30,23 +41,10 @@ jobs:
 
           echo ${FULL_TAG}
 
-          VERSION="${FULL_TAG#v}"
-
-          echo ${VERSION}
-
           TAG_MESSAGE=$(git tag -l --format='%(contents)' "${FULL_TAG}")
 
           echo ${TAG_MESSAGE}
-
-          echo "current_version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag_message=${TAG_MESSAGE}" >> $GITHUB_OUTPUT
-
-      - name: Get Changelog Entry
-        id: reader
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          version: ${{ steps.tag_name.outputs.current_version }}
-          path: ./CHANGELOG.md
 
       - name: Download Artifact
         uses: actions/download-artifact@v4
@@ -60,7 +58,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "${{ github.event.workflow_run.head_branch }} ${{ steps.tag_name.outputs.tag_message }}"
-          body: ${{ steps.reader.outputs.changes }}
+          body: ${{ steps.git-cliff.outputs.content }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
           files: dist/*
           prerelease: ${{ contains(github.event.workflow_run.head_branch, '-') }}
