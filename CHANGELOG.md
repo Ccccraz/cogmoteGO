@@ -2,6 +2,43 @@
 
 cogmoteGO change log.
 
+## [0.1.4-alpha.1] - 2025-05-17
+
+### 🚀 Features
+
+- :egg: add more monkey sayings by @Ccccraz in [#20](https://github.com/Ccccraz/cogmoteGO/pull/20)
+
+- ✨ add cobra to support command-line arguments such as: --version (#28) by @Ccccraz in [#28](https://github.com/Ccccraz/cogmoteGO/pull/28)
+
+
+### 🐛 Bug Fixes
+
+- :pencil2: bordercast_endpoints -> broadcast_endpoints by @Ccccraz in [#26](https://github.com/Ccccraz/cogmoteGO/pull/26)
+
+- :bug: add the missing Get /cmds/proxies endpoint by @Ccccraz in [#27](https://github.com/Ccccraz/cogmoteGO/pull/27)
+
+
+### 💼 Other
+
+- :wastebasket: give up justfile by @Ccccraz in [#29](https://github.com/Ccccraz/cogmoteGO/pull/29)
+
+- :building_construction: add Windows build script with CGO and version embedding by @Ccccraz
+
+- :building_construction: add Linux/macOS build script with CGO and version embedding by @Ccccraz in [#31](https://github.com/Ccccraz/cogmoteGO/pull/31)
+
+- :ambulance: fix the problem of pre-release version number formatting error by @Ccccraz in [#32](https://github.com/Ccccraz/cogmoteGO/pull/32)
+
+
+### ⚙️ Miscellaneous Tasks
+
+- 📝 add GNU LESSER GENERAL PUBLIC LICENSE by @Ccccraz in [#30](https://github.com/Ccccraz/cogmoteGO/pull/30)
+
+- 👷 optimized the release and build (#33) by @Ccccraz in [#33](https://github.com/Ccccraz/cogmoteGO/pull/33)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.4...v0.1.4-alpha.1
+
 ## [0.1.4] - 2025-05-11
 
 ### 🐛 Bug Fixes
