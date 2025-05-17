@@ -2,7 +2,7 @@
 
 cogmoteGO change log.
 
-## [0.1.4-alpha.1] - 2025-05-17
+## [0.1.5] - 2025-05-17
 
 ### 🚀 Features
 
@@ -37,7 +37,7 @@ cogmoteGO change log.
 
 
 
-**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.4...v0.1.4-alpha.1
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.4...v0.1.5
 
 ## [0.1.4] - 2025-05-11
 
