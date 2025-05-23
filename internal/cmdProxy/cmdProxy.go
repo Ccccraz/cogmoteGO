@@ -199,10 +199,11 @@ func createCmdProxy(c *gin.Context) {
 		if err := client.handShake(); err != nil {
 
 			reqClientMapMutex.Lock()
+			if _, exist := reqClientMap[endpoint.NickName]; exist {
+				client.socket.Close()
 			delete(reqClientMap, endpoint.NickName)
+			}
 			reqClientMapMutex.Unlock()
-
-			client.socket.Close()
 		}
 	}()
 
