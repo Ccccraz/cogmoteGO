@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/adrg/xdg"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -48,9 +49,11 @@ var (
 	// experiments json file
 	experimentsJson    string
 	experimentsBaseDir string
+
+	logKey = "experiments"
 )
 
-func init() {
+func Init() {
 	// init experiments json file path
 	initPaths()
 
@@ -62,8 +65,20 @@ func init() {
 func initPaths() {
 	experimentsBaseDir = filepath.Join(xdg.DataHome, "cogmoteGO", "experiments")
 	experimentsJson = filepath.Join(experimentsBaseDir, "experiments.json")
-	log.Printf("experiments db file: %s\n", experimentsJson)
-	log.Printf("experiments base dir: %s\n", experimentsBaseDir)
+	logger.Logger.Debug(
+		"location of experiments db file: ",
+		slog.Group(
+			logKey,
+			slog.String("location", experimentsJson),
+		),
+	)
+	logger.Logger.Debug(
+		"location of experiments base dir: ",
+		slog.Group(
+			logKey,
+			slog.String("location", experimentsBaseDir),
+		),
+	)
 }
 
 // Save experiment records to json file
@@ -347,7 +362,14 @@ func StartExperimentProcess(ctx context.Context, id string, record *ExperimentRe
 
 		err := cmd.Wait()
 		if err != nil {
-			log.Printf("Experiment %s exited with error: %v", id, err)
+			logger.Logger.Error(
+				"experiment exited with error: ",
+				slog.Group(
+					logKey,
+					slog.String("id", id),
+					slog.String("exit_error", err.Error()),
+				),
+			)
 		}
 	}()
 
@@ -433,10 +455,24 @@ func InitExperiment(record *ExperimentRecord) {
 	cmd := exec.Command("git", "-C", experimentsBaseDir, "clone", record.Address, record.Nickname)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("Failed to clone experiment repository: %v", err)
+		logger.Logger.Error(
+			"experiment failed to initialize: ",
+			slog.Group(
+				logKey,
+				slog.String("nickname", record.Nickname),
+				slog.String("init_error", err.Error()),
+			),
+		)
 	}
 
-	log.Printf("Cloned experiment repository: %s", string(output))
+	logger.Logger.Info(
+		"experiment initialized: ",
+		slog.Group(
+			logKey,
+			slog.String("nickname", record.Nickname),
+			slog.String("init_log", string(output)),
+		),
+	)
 }
 
 func RegisterRoutes(r *gin.Engine) {

@@ -2,13 +2,18 @@ package broadcast
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	logKey = "broadcast"
 )
 
 // broadcast endpoint
@@ -102,7 +107,12 @@ func BroadcastData(c *gin.Context) {
 			select {
 			case c <- data:
 			default:
-				log.Println("channel is full")
+				logger.Logger.Warn(
+					"channel is full: ",
+					slog.Group(
+						logKey,
+						slog.String("endpoint", name),
+					))
 			}
 		}(ch)
 

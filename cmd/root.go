@@ -9,6 +9,7 @@ import (
 	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
 	"github.com/Ccccraz/cogmoteGO/internal/experiments"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
+	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -82,19 +83,29 @@ func initConfig() {
 
 // Default entry point
 func Serve() {
+	var dev bool
+
 	if envMode := os.Getenv("GIN_MODE"); envMode == "" {
 		gin.SetMode(gin.ReleaseMode)
+		dev = false
 	} else {
 		gin.SetMode(envMode)
+		dev = true
 	}
 
+	logger.Init(dev)
+	experiments.Init()
+
 	r := gin.New()
-	r.Use(gin.Recovery())
-	r.UseH2C = true
 
 	if gin.Mode() == gin.DebugMode {
 		r.Use(gin.Logger())
+	} else {
+		r.Use(logger.GinMiddleware(logger.Logger))
 	}
+
+	r.Use(gin.Recovery())
+	r.UseH2C = true
 
 	broadcast.RegisterRoutes(r)
 	cmdproxy.RegisterRoutes(r)
