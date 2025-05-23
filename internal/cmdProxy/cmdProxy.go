@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	zmq "github.com/pebbe/zmq4"
@@ -69,6 +70,10 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 }
 
 func (r *ReqClient) handShake() error {
+	if err := r.socket.SetRcvtimeo(5 * time.Second); err != nil {
+		return fmt.Errorf("failed to set receive timeout: %v", err)
+	}
+
 	request := HandshakeREQ{
 		Request: "Hello",
 	}
@@ -201,7 +206,7 @@ func createCmdProxy(c *gin.Context) {
 			reqClientMapMutex.Lock()
 			if _, exist := reqClientMap[endpoint.NickName]; exist {
 				client.socket.Close()
-			delete(reqClientMap, endpoint.NickName)
+				delete(reqClientMap, endpoint.NickName)
 			}
 			reqClientMapMutex.Unlock()
 		}
