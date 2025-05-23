@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -40,6 +41,7 @@ type ReqClient struct {
 var (
 	reqClientMap      = make(map[string]*ReqClient)
 	reqClientMapMutex sync.RWMutex
+	logKey            = "cmdProxies"
 )
 
 // Create a ZeroMQ REQ client
@@ -84,7 +86,12 @@ func (r *ReqClient) handShake() error {
 	var msg HandshakeREP
 	json.Unmarshal([]byte(msgJson), &msg)
 
-	log.Printf("Received message from server: %s\n", msg.Response)
+	logger.Logger.Info(
+		"handshake response received: ",
+		slog.Group(
+			logKey,
+			slog.String("message", msg.Response),
+		))
 
 	if err != nil || msg.Response != "World" {
 		return fmt.Errorf("failed to receive message from server: %v", err)
@@ -188,7 +195,13 @@ func createCmdProxy(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Starting command proxy for %s\n", endpoint.NickName)
+	logger.Logger.Info(
+		"starting command proxy: ",
+		slog.Group(
+			logKey,
+			slog.String("nickname", endpoint.NickName),
+		),
+	)
 
 	reqClientMapMutex.Lock()
 	defer reqClientMapMutex.Unlock()
@@ -267,7 +280,13 @@ func DeleteAllCmdProxies(c *gin.Context) {
 		go func(c *ReqClient) {
 			defer wg.Done()
 			if err := c.Close(); err != nil {
-				log.Printf("Failed to close client: %v", err)
+				logger.Logger.Error(
+					"failed to close client: ",
+					slog.Group(
+						logKey,
+						slog.String("error", err.Error()),
+					),
+				)
 			}
 		}(client)
 	}
