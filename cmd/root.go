@@ -117,5 +117,5 @@ func Serve() {
 }
 
 func printVersion() {
-	fmt.Printf("cogmoteGO %s (%s %s)", version, commit, datetime)
+	fmt.Printf("cogmoteGO %s (%s %s)\n", version, commit, datetime)
 }
