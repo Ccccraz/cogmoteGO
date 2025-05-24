@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 	zmq "github.com/pebbe/zmq4"
@@ -49,18 +50,18 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 	zctx, err := zmq.NewContext()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create context: %v", err)
+		return nil, fmt.Errorf("failed to create context: %w", err)
 	}
 
 	s, err := zctx.NewSocket(zmq.REQ)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create socket: %v", err)
+		return nil, fmt.Errorf("failed to create socket: %w", err)
 	}
 
 	err = s.Connect(fmt.Sprintf("tcp://%s:%d", hostname, port))
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to server: %v", err)
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
 	return &ReqClient{
@@ -72,30 +73,57 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 }
 
 func (r *ReqClient) handShake() error {
+	const (
+		expectedRequest  = "Hello"
+		expectedResponse = "World"
+	)
+
+	// time cost benchmark start mark
+	start := time.Now()
+
 	if err := r.socket.SetRcvtimeo(5 * time.Second); err != nil {
-		return fmt.Errorf("failed to set receive timeout: %v", err)
+		return fmt.Errorf("failed to set receive timeout: %w", err)
+	}
+
+	if err := r.socket.SetSndtimeo(5 * time.Second); err != nil {
+		return fmt.Errorf("failed to set send timeout: %w", err)
 	}
 
 	request := HandshakeREQ{
-		Request: "Hello",
+		Request: expectedRequest,
 	}
-	requestJson, _ := json.Marshal(request)
-	r.socket.SendBytes(requestJson, 0)
+
+	requestJson, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal handshake request: %w", err)
+	}
+
+	if _, err := r.socket.SendBytes(requestJson, 0); err != nil {
+		return fmt.Errorf("failed to send handshake request: %w", err)
+	}
 
 	msgJson, err := r.socket.RecvBytes(0)
-	var msg HandshakeREP
-	json.Unmarshal([]byte(msgJson), &msg)
+	if err != nil {
+		return fmt.Errorf("failed to receive handshake response: %w", err)
+	}
 
-	logger.Logger.Info(
-		"handshake response received: ",
+	var msg HandshakeREP
+	if err := json.Unmarshal(msgJson, &msg); err != nil {
+		return fmt.Errorf("invalid handshake response: %w", err)
+	}
+
+	if msg.Response != expectedResponse {
+		return fmt.Errorf("wrong handshake response: %s", msg.Response)
+	}
+
+	// time cost benchmark end mark
+	elapsed := time.Since(start)
+	logger.Logger.Debug("Handshake completed",
 		slog.Group(
 			logKey,
-			slog.String("message", msg.Response),
+			slog.String("response", msg.Response),
+			slog.Duration("duration", elapsed),
 		))
-
-	if err != nil || msg.Response != "World" {
-		return fmt.Errorf("failed to receive message from server: %v", err)
-	}
 
 	return nil
 }
@@ -107,12 +135,12 @@ func (r *ReqClient) Send(msg []byte) ([]byte, error) {
 
 	_, err := r.socket.SendBytes(msg, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send message: %v", err)
+		return nil, fmt.Errorf("failed to send message: %w", err)
 	}
 
 	response, err := r.socket.RecvBytes(0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive message: %v", err)
+		return nil, fmt.Errorf("failed to receive message: %w", err)
 	}
 
 	return response, nil
@@ -143,7 +171,7 @@ func (r *ReqClient) Close() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("%d errors occurred: %v", len(errs), errors.Join(errs...))
+		return errors.Join(errs...)
 	}
 
 	return nil
@@ -154,7 +182,10 @@ func GetAllCmdProxies(c *gin.Context) {
 	defer reqClientMapMutex.RUnlock()
 
 	if len(reqClientMap) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no command proxies found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  "no command proxies found",
+			Detail: "",
+		})
 		return
 	}
 
@@ -176,7 +207,10 @@ func createCmdProxy(c *gin.Context) {
 	var endpoint Endpoint
 
 	if err := c.ShouldBindJSON(&endpoint); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "invalid proxy endpoint",
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -185,13 +219,20 @@ func createCmdProxy(c *gin.Context) {
 	reqClientMapMutex.RUnlock()
 
 	if exist {
-		c.JSON(http.StatusConflict, gin.H{"error": "Command proxy already started"})
+		c.JSON(http.StatusConflict, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy %s already started", endpoint.NickName),
+			Detail: "",
+		})
 		return
 	}
 
 	client, err := createREQ(endpoint.Hostname, endpoint.Port)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to create command proxy %s", endpoint.NickName),
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -208,7 +249,10 @@ func createCmdProxy(c *gin.Context) {
 
 	if _, exist := reqClientMap[endpoint.NickName]; exist {
 		client.Close()
-		c.JSON(http.StatusConflict, gin.H{"error": "Command proxy already started"})
+		c.JSON(http.StatusConflict, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy %s already started", endpoint.NickName),
+			Detail: "",
+		})
 		return
 	}
 	reqClientMap[endpoint.NickName] = client
@@ -230,24 +274,34 @@ func createCmdProxy(c *gin.Context) {
 
 // Forward a command to the server and return the response
 func sendCmd(c *gin.Context) {
+	nickname := c.Param("nickname")
 	reqClientMapMutex.RLock()
-	reqClient, exist := reqClientMap[c.Param("nickname")]
+	reqClient, exist := reqClientMap[nickname]
 	reqClientMapMutex.RUnlock()
 
 	if !exist {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Command proxy not started"})
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy %s not started", nickname),
+			Detail: "",
+		})
 		return
 	}
 
 	cmd, err := c.GetRawData()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid command"})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "cannot get command data from request body",
+			Detail: err.Error(),
+		})
 		return
 	}
 
 	result, err := reqClient.Send(cmd)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to send command to command proxy %s", nickname),
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -257,9 +311,9 @@ func sendCmd(c *gin.Context) {
 func DeleteAllCmdProxies(c *gin.Context) {
 	reqClientMapMutex.Lock()
 
+	// if reqClientMap is empty, return directly
 	if len(reqClientMap) == 0 {
-		reqClientMapMutex.Unlock()
-		c.JSON(http.StatusNotFound, gin.H{"error": "no command proxies found"})
+		c.Status(http.StatusOK)
 		return
 	}
 
@@ -274,7 +328,12 @@ func DeleteAllCmdProxies(c *gin.Context) {
 	reqClientMapMutex.Unlock()
 
 	// Close all clients outside the lock
-	var wg sync.WaitGroup
+	var (
+		wg     sync.WaitGroup
+		errs   []error
+		errMux sync.Mutex
+	)
+
 	for _, client := range clients {
 		wg.Add(1)
 		go func(c *ReqClient) {
@@ -287,8 +346,19 @@ func DeleteAllCmdProxies(c *gin.Context) {
 						slog.String("error", err.Error()),
 					),
 				)
+				errMux.Lock()
+				errs = append(errs, err)
+				errMux.Unlock()
 			}
 		}(client)
+	}
+	wg.Wait()
+
+	if len(errs) > 0 {
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to close some clients",
+			Detail: errors.Join(errs...).Error(),
+		})
 	}
 
 	c.Status(http.StatusOK)
@@ -297,7 +367,10 @@ func DeleteAllCmdProxies(c *gin.Context) {
 func DeleteCmdProxy(c *gin.Context) {
 	nickname := c.Param("nickname")
 	if nickname == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname is required"})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "nickname is required",
+			Detail: "",
+		})
 		return
 	}
 
@@ -306,7 +379,10 @@ func DeleteCmdProxy(c *gin.Context) {
 	reqClientMapMutex.RUnlock()
 
 	if !exist {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("command proxy for '%s' not found", nickname)})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy for '%s' not found", nickname),
+			Detail: "",
+		})
 		return
 	}
 
@@ -315,7 +391,10 @@ func DeleteCmdProxy(c *gin.Context) {
 	delete(reqClientMap, nickname)
 
 	if err := client.Close(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to close command proxy %s", nickname),
+			Detail: err.Error(),
+		})
 		return
 	}
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/adrg/xdg"
 	"github.com/gin-gonic/gin"
@@ -130,7 +131,7 @@ func loadExperimentRecords() {
 func GetExperiments(c *gin.Context) {
 	experiments := make([]ExperimentRecord, 0)
 
-	experimentRecords.Range(func(key, value interface{}) bool {
+	experimentRecords.Range(func(key, value any) bool {
 		experiments = append(experiments, value.(ExperimentRecord))
 		return true
 	})
@@ -144,7 +145,10 @@ func GetExperimentById(c *gin.Context) {
 
 	exp, exists := experimentRecords.Load(id)
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "experiment not found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("experiment with id %s not found", id),
+			Detail: "",
+		})
 		return
 	}
 
@@ -157,7 +161,10 @@ func UpdateExperimentRecordById(c *gin.Context) {
 
 	var experiment Experiment
 	if err := c.ShouldBindJSON(&experiment); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "invalid experiment info data",
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -181,7 +188,7 @@ func UpdateExperimentRecordById(c *gin.Context) {
 func DeleteAllExperimentRecords(c *gin.Context) {
 	experimentRecords = sync.Map{}
 	saveExperimentRecord()
-	c.JSON(http.StatusOK, gin.H{"message": "all experiments deleted"})
+	c.Status(http.StatusOK)
 }
 
 // Delete experiment record by id endpoint
@@ -189,20 +196,26 @@ func DeleteExperimentRecordById(c *gin.Context) {
 	id := c.Param("id")
 
 	if _, exists := experimentRecords.Load(id); !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "experiment not found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("experiment with id %s not found", id),
+			Detail: "",
+		})
 		return
 	}
 
 	experimentRecords.Delete(id)
 	saveExperimentRecord()
-	c.JSON(http.StatusOK, gin.H{"message": "experiment deleted"})
+	c.Status(http.StatusOK)
 }
 
 // Register new experiment record endpoint
 func RegisterExperiment(c *gin.Context) {
 	var experiment Experiment
 	if err := c.ShouldBindJSON(&experiment); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "invalid experiment info data",
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -230,18 +243,18 @@ func StartExperiment(c *gin.Context) {
 	// validate experiment record
 	record, err := validateExperiment(id)
 	if err != nil {
-		c.JSON(err.status, gin.H{
-			"error":   err.message,
-			"details": err.details,
+		c.JSON(err.status, commonTypes.APIError{
+			Error:  err.message,
+			Detail: err.details,
 		})
 		return
 	}
 
 	// check if experiment is already running
 	if err := checkExperimentRunning(); err != nil {
-		c.JSON(http.StatusConflict, gin.H{
-			"error":   err.message,
-			"details": err.details,
+		c.JSON(err.status, commonTypes.APIError{
+			Error:  err.message,
+			Detail: err.details,
 		})
 		return
 	}
@@ -249,9 +262,9 @@ func StartExperiment(c *gin.Context) {
 	// start experiment process
 	process, err := StartExperimentProcess(c.Request.Context(), id, record)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   err.message,
-			"details": err.details,
+		c.JSON(err.status, commonTypes.APIError{
+			Error:  err.message,
+			Detail: err.details,
 		})
 		return
 	}
@@ -382,17 +395,18 @@ func StopExperiment(c *gin.Context) {
 
 	// check if experiment is running
 	if currentExperiment == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "no running experiment found with this ID",
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("no running experiment found with ID %s", id),
+			Detail: "",
 		})
 		return
 	}
 
 	// stop experiment process
 	if err := currentExperiment.Kill(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to stop experiment",
-			"details": err.Error(),
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to stop experiment with ID %s", id),
+			Detail: err.Error(),
 		})
 		return
 	}
@@ -416,8 +430,9 @@ func UpdateExperiment(c *gin.Context) {
 	record, ok := experimentRecords.Load(id)
 	// check if experiment record exists
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "experiment not found",
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("no experiment found with ID %s", id),
+			Detail: "",
 		})
 		return
 	}
@@ -431,9 +446,9 @@ func UpdateExperiment(c *gin.Context) {
 	cmd := exec.Command("git", "-C", dir, "pull")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to update experiment",
-			"details": err.Error(),
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to update experiment with ID %s", id),
+			Detail: err.Error(),
 		})
 		return
 	}
