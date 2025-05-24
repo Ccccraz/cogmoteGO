@@ -2,12 +2,14 @@ package broadcast
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -56,9 +58,9 @@ func CreateBroadcast(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid request body",
-			"details": err.Error(),
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "without valid broadcast name",
+			Detail: err.Error(),
 		})
 		return
 	}
@@ -67,7 +69,10 @@ func CreateBroadcast(c *gin.Context) {
 	defer broadEndpointsMu.Unlock()
 
 	if _, exists := broadEndpoints[request.Name]; exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "endpoint already exists"})
+		c.JSON(http.StatusConflict, commonTypes.APIError{
+			Error:  fmt.Sprintf("data broadcast endpoint: %s already exists", request.Name),
+			Detail: "",
+		})
 		return
 	}
 
@@ -86,14 +91,20 @@ func BroadcastData(c *gin.Context) {
 	broadEndpointsMu.RUnlock()
 
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "endpoint not found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("data broadcast endpoint: %s does not exist", name),
+			Detail: "",
+		})
 		return
 	}
 
 	// read raw data
 	data, err := c.GetRawData()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid data"})
+		c.JSON(http.StatusBadRequest, commonTypes.APIError{
+			Error:  "invalid data format",
+			Detail: err.Error(),
+		})
 		return
 	}
 
@@ -134,7 +145,10 @@ func SubscribeBroadcast(c *gin.Context) {
 	broadEndpointsMu.RUnlock()
 
 	if !exists {
-		c.JSON(404, gin.H{"error": "endpoint not found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("data broadcast endpoint: %s does not exist", name),
+			Detail: "",
+		})
 		return
 	}
 
@@ -233,9 +247,13 @@ func GetMockData(c *gin.Context) {
 		select {
 		case data, ok := <-mockDataChan:
 			if !ok {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+				c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+					Error:  "internal server error",
+					Detail: "",
+				})
 				return
 			}
+
 			c.SSEvent("message", data)
 			c.Writer.Flush()
 		case <-c.Writer.CloseNotify():
@@ -253,7 +271,10 @@ func DeleteBroadcast(c *gin.Context) {
 	defer broadEndpointsMu.Unlock()
 
 	if _, exists := broadEndpoints[name]; !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "endpoint not found"})
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("data broadcast endpoint: %s does not exist", name),
+			Detail: "",
+		})
 		return
 	}
 
