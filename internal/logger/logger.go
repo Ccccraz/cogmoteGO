@@ -1,7 +1,9 @@
 package logger
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"log/slog"
@@ -18,11 +20,25 @@ type prettyHandlerOptions struct {
 type prettyHandler struct {
 	slog.Handler
 	logger *log.Logger
+	buf    bytes.Buffer
 }
 
 func (h *prettyHandler) Handle(ctx context.Context, r slog.Record) error {
-	level := r.Level.String()
+	h.buf.Reset()
+	if err := h.Handler.Handle(ctx, r); err != nil {
+		return err
+	}
 
+	var data map[string]any
+	if err := json.Unmarshal(h.buf.Bytes(), &data); err != nil {
+		return err
+	}
+
+	delete(data, "msg")
+	delete(data, "level")
+	delete(data, "time")
+
+	var level string
 	switch r.Level {
 	case slog.LevelInfo:
 		level = " INF "
@@ -40,16 +56,9 @@ func (h *prettyHandler) Handle(ctx context.Context, r slog.Record) error {
 	level = color.HiWhiteString(level)
 	level = "|" + level + "|"
 
-	fields := make(map[string]any, r.NumAttrs())
-
-	r.Attrs(func(a slog.Attr) bool {
-		fields[a.Key] = h.processAttr(a.Value)
-		return true
-	})
-
 	f := colorjson.NewFormatter()
 	f.Indent = 2
-	b, err := f.Marshal(fields)
+	b, err := f.Marshal(data)
 	if err != nil {
 		return err
 	}
@@ -64,23 +73,12 @@ func (h *prettyHandler) Handle(ctx context.Context, r slog.Record) error {
 	return nil
 }
 
-func (h *prettyHandler) processAttr(v slog.Value) any {
-	if v.Kind() == slog.KindGroup {
-		attrs := v.Group()
-		groupMap := make(map[string]any, len(attrs))
-		for _, a := range attrs {
-			groupMap[a.Key] = h.processAttr(a.Value)
-		}
-		return groupMap
-	}
-	return v.Any()
-}
-
 func newPrettyHandler(out io.Writer, opts *prettyHandlerOptions) *prettyHandler {
 	h := &prettyHandler{
-		Handler: slog.NewJSONHandler(out, &opts.slogOpts),
-		logger:  log.New(out, "", 0),
+		logger: log.New(out, "", 0),
+		buf:    bytes.Buffer{},
 	}
+	h.Handler = slog.NewJSONHandler(&h.buf, &opts.slogOpts)
 
 	return h
 }
