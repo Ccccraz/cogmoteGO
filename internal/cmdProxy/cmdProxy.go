@@ -122,7 +122,7 @@ func (r *ReqClient) handShake() error {
 		slog.Group(
 			logKey,
 			slog.String("response", msg.Response),
-			slog.Duration("duration", elapsed),
+			slog.String("duration", elapsed.String()),
 		))
 
 	return nil
@@ -274,7 +274,11 @@ func createCmdProxy(c *gin.Context) {
 
 // Forward a command to the server and return the response
 func sendCmd(c *gin.Context) {
+	// time cost benchmark start mark
+	handleStart := time.Now()
+
 	nickname := c.Param("nickname")
+
 	reqClientMapMutex.RLock()
 	reqClient, exist := reqClientMap[nickname]
 	reqClientMapMutex.RUnlock()
@@ -284,6 +288,12 @@ func sendCmd(c *gin.Context) {
 			Error:  fmt.Sprintf("command proxy %s not started", nickname),
 			Detail: "",
 		})
+		logger.Logger.Error(
+			"command proxy not started: ",
+			slog.Group(
+				logKey,
+				slog.String("nickname", nickname),
+			))
 		return
 	}
 
@@ -295,7 +305,9 @@ func sendCmd(c *gin.Context) {
 		})
 		return
 	}
+	handleElapsed := time.Since(handleStart)
 
+	sendStart := time.Now()
 	result, err := reqClient.Send(cmd)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
@@ -304,6 +316,15 @@ func sendCmd(c *gin.Context) {
 		})
 		return
 	}
+
+	sendElapsed := time.Since(sendStart)
+	logger.Logger.Debug("command send success: ",
+		slog.Group(
+			logKey,
+			slog.String("nickname", nickname),
+			slog.String("handleDuration", handleElapsed.String()),
+			slog.String("sendDuration", sendElapsed.String()),
+		))
 
 	c.Data(http.StatusCreated, "application/json", result)
 }
