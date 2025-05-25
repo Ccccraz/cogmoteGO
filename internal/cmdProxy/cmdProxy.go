@@ -1,6 +1,7 @@
 package cmdproxy
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,11 +33,12 @@ type HandshakeREQ struct {
 
 // ReqClient is a client for sending requests to the Rep server
 type ReqClient struct {
-	hostname string
-	port     uint
-	context  *zmq.Context
-	socket   *zmq.Socket
-	mutex    sync.Mutex
+	hostname  string
+	port      uint
+	available bool
+	context   *zmq.Context
+	socket    *zmq.Socket
+	mutex     sync.Mutex
 }
 
 var (
@@ -76,18 +78,14 @@ func (r *ReqClient) handShake() error {
 	const (
 		expectedRequest  = "Hello"
 		expectedResponse = "World"
+		handshakeTimeout = 5 * time.Second
 	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), handshakeTimeout)
+	defer cancel()
 
 	// time cost benchmark start mark
 	start := time.Now()
-
-	if err := r.socket.SetRcvtimeo(5 * time.Second); err != nil {
-		return fmt.Errorf("failed to set receive timeout: %w", err)
-	}
-
-	if err := r.socket.SetSndtimeo(5 * time.Second); err != nil {
-		return fmt.Errorf("failed to set send timeout: %w", err)
-	}
 
 	request := HandshakeREQ{
 		Request: expectedRequest,
@@ -98,13 +96,37 @@ func (r *ReqClient) handShake() error {
 		return fmt.Errorf("failed to marshal handshake request: %w", err)
 	}
 
-	if _, err := r.socket.SendBytes(requestJson, 0); err != nil {
-		return fmt.Errorf("failed to send handshake request: %w", err)
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("send handshake request timed out: %w", ctx.Err())
+	default:
+		if _, err := r.socket.SendBytes(requestJson, 0); err != nil {
+			return fmt.Errorf("failed to send handshake request: %w", err)
+		}
 	}
 
-	msgJson, err := r.socket.RecvBytes(0)
-	if err != nil {
-		return fmt.Errorf("failed to receive handshake response: %w", err)
+	var msgJson []byte
+	recvChan := make(chan struct {
+		data []byte
+		err  error
+	})
+
+	go func() {
+		data, err := r.socket.RecvBytes(0)
+		recvChan <- struct {
+			data []byte
+			err  error
+		}{data: data, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("receive handshake response timed out: %w", ctx.Err())
+	case result := <-recvChan:
+		if result.err != nil {
+			return fmt.Errorf("failed to receive handshake response: %w", result.err)
+		}
+		msgJson = result.data
 	}
 
 	var msg HandshakeREP
@@ -115,6 +137,8 @@ func (r *ReqClient) handShake() error {
 	if msg.Response != expectedResponse {
 		return fmt.Errorf("wrong handshake response: %s", msg.Response)
 	}
+
+	r.available = true
 
 	// time cost benchmark end mark
 	elapsed := time.Since(start)
@@ -297,12 +321,32 @@ func sendCmd(c *gin.Context) {
 		return
 	}
 
+	if !reqClient.available {
+		c.JSON(http.StatusServiceUnavailable, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy %s is not available", nickname),
+			Detail: "",
+		})
+		logger.Logger.Error(
+			"command proxy not available: ",
+			slog.Group(
+				logKey,
+				slog.String("nickname", nickname),
+				slog.String("error", "command proxy is not available"),
+			))
+	}
+
 	cmd, err := c.GetRawData()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, commonTypes.APIError{
 			Error:  "cannot get command data from request body",
 			Detail: err.Error(),
 		})
+		logger.Logger.Error(
+			"cannot get command data from request body: ",
+			slog.Group(
+				logKey,
+				slog.String("nickname", nickname),
+			))
 		return
 	}
 	handleElapsed := time.Since(handleStart)
@@ -314,6 +358,12 @@ func sendCmd(c *gin.Context) {
 			Error:  fmt.Sprintf("failed to send command to command proxy %s", nickname),
 			Detail: err.Error(),
 		})
+		logger.Logger.Error(
+			"failed to send command to command proxy: ",
+			slog.Group(
+				logKey,
+				slog.String("nickname", nickname),
+			))
 		return
 	}
 
