@@ -32,20 +32,6 @@ jobs:
           OUTPUT: CHANGES.md
           GITHUB_REPO: ${{ github.repository }}
 
-      - name: Get version from tag
-        id: tag_name
-        run: |
-          echo "${{ github.event.workflow_run.head_branch }}"
-
-          FULL_TAG="${{ github.event.workflow_run.head_branch }}"
-
-          echo ${FULL_TAG}
-
-          TAG_MESSAGE=$(git tag -l --format='%(contents)' "${FULL_TAG}")
-
-          echo ${TAG_MESSAGE}
-          echo "tag_message=${TAG_MESSAGE}" >> $GITHUB_OUTPUT
-
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
@@ -57,7 +43,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "${{ github.event.workflow_run.head_branch }} ${{ steps.tag_name.outputs.tag_message }}"
+          name: "${{ github.event.workflow_run.head_branch }}"
           body: ${{ steps.git-cliff.outputs.content }}
           tag_name: ${{ github.event.workflow_run.head_branch }}
           files: dist/*
