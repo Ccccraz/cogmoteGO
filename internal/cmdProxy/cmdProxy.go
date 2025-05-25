@@ -1,7 +1,6 @@
 package cmdproxy
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,14 +74,42 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 }
 
 func (r *ReqClient) handShake() error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	const (
 		expectedRequest  = "Hello"
 		expectedResponse = "World"
 		handshakeTimeout = 5 * time.Second
+		proxyTimeout     = 5 * time.Second
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), handshakeTimeout)
-	defer cancel()
+	if err := r.socket.SetSndtimeo(handshakeTimeout); err != nil {
+		return fmt.Errorf("failed to set send timeout: %w", err)
+	}
+
+	if err := r.socket.SetRcvtimeo(proxyTimeout); err != nil {
+		return fmt.Errorf("failed to set receive timeout: %w", err)
+	}
+
+	defer func() {
+		if err := r.socket.SetSndtimeo(proxyTimeout); err != nil {
+			logger.Logger.Error(
+				"Failed to set send timeout",
+				slog.Group(
+					logKey,
+					slog.String("error", err.Error()),
+				))
+		}
+		if err := r.socket.SetRcvtimeo(proxyTimeout); err != nil {
+			logger.Logger.Error(
+				"Failed to set receive timeout",
+				slog.Group(
+					logKey,
+					slog.String("error", err.Error()),
+				))
+		}
+	}()
 
 	// time cost benchmark start mark
 	start := time.Now()
@@ -96,37 +123,15 @@ func (r *ReqClient) handShake() error {
 		return fmt.Errorf("failed to marshal handshake request: %w", err)
 	}
 
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("send handshake request timed out: %w", ctx.Err())
-	default:
-		if _, err := r.socket.SendBytes(requestJson, 0); err != nil {
-			return fmt.Errorf("failed to send handshake request: %w", err)
-		}
+	if _, err := r.socket.SendBytes(requestJson, 0); err != nil {
+		return fmt.Errorf("failed to send handshake request: %w", err)
 	}
 
-	var msgJson []byte
-	recvChan := make(chan struct {
-		data []byte
-		err  error
-	})
-
-	go func() {
-		data, err := r.socket.RecvBytes(0)
-		recvChan <- struct {
-			data []byte
-			err  error
-		}{data: data, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("receive handshake response timed out: %w", ctx.Err())
-	case result := <-recvChan:
-		if result.err != nil {
-			return fmt.Errorf("failed to receive handshake response: %w", result.err)
-		}
-		msgJson = result.data
+	msgJson, err := r.socket.RecvBytes(0)
+	if len(msgJson) == 0 {
+		return fmt.Errorf("empty handshake response...")
+	} else if err != nil {
+		return fmt.Errorf("failed to receive handshake response: %w", err)
 	}
 
 	var msg HandshakeREP
@@ -265,6 +270,8 @@ func createCmdProxy(c *gin.Context) {
 		slog.Group(
 			logKey,
 			slog.String("nickname", endpoint.NickName),
+			slog.String("hostname", endpoint.Hostname),
+			slog.Int("port", int(endpoint.Port)),
 		),
 	)
 
@@ -283,13 +290,20 @@ func createCmdProxy(c *gin.Context) {
 
 	go func() {
 		if err := client.handShake(); err != nil {
-
 			reqClientMapMutex.Lock()
 			if _, exist := reqClientMap[endpoint.NickName]; exist {
 				client.socket.Close()
 				delete(reqClientMap, endpoint.NickName)
 			}
 			reqClientMapMutex.Unlock()
+
+			logger.Logger.Error(
+				"handshake failed: ",
+				slog.Group(
+					logKey,
+					slog.String("nickname", endpoint.NickName),
+					slog.String("error", err.Error()),
+				))
 		}
 	}()
 
@@ -308,12 +322,12 @@ func sendCmd(c *gin.Context) {
 	reqClientMapMutex.RUnlock()
 
 	if !exist {
-		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  fmt.Sprintf("command proxy %s not started", nickname),
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("command proxy %s not found", nickname),
 			Detail: "",
 		})
 		logger.Logger.Error(
-			"command proxy not started: ",
+			"command proxy not found: ",
 			slog.Group(
 				logKey,
 				slog.String("nickname", nickname),
@@ -333,6 +347,7 @@ func sendCmd(c *gin.Context) {
 				slog.String("nickname", nickname),
 				slog.String("error", "command proxy is not available"),
 			))
+		return
 	}
 
 	cmd, err := c.GetRawData()
