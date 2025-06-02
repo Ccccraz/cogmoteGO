@@ -1,0 +1,15 @@
+[Unit]
+Description="air traffic control" for remote neuroexperiments
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=cogmoteGO
+User=%i
+Restart=always
+RestartSec=60
+StartLimitInterval=100
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
