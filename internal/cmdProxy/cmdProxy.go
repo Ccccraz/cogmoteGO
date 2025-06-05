@@ -396,6 +396,7 @@ func sendCmd(c *gin.Context) {
 
 func DeleteAllCmdProxies(c *gin.Context) {
 	reqClientMapMutex.Lock()
+	defer reqClientMapMutex.Unlock()
 
 	// if reqClientMap is empty, return directly
 	if len(reqClientMap) == 0 {
