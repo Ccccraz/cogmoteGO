@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=exec
-ExecStart=cogmoteGO
+ExecStart=/usr/local/bin/cogmoteGO
 User=%i
 Restart=always
-RestartSec=60
-StartLimitInterval=100
+RestartSec=10
+StartLimitInterval=50
 StartLimitBurst=5
 
 [Install]
