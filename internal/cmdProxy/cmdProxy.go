@@ -81,7 +81,7 @@ func (r *ReqClient) handShake() error {
 		expectedRequest  = "Hello"
 		expectedResponse = "World"
 		handshakeTimeout = 5 * time.Second
-		proxyTimeout     = 5 * time.Second
+		proxyTimeout     = -1
 	)
 
 	if err := r.socket.SetSndtimeo(handshakeTimeout); err != nil {
@@ -378,6 +378,7 @@ func sendCmd(c *gin.Context) {
 			slog.Group(
 				logKey,
 				slog.String("nickname", nickname),
+				slog.String("detail", err.Error()),
 			))
 		return
 	}
