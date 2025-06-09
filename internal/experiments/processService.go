@@ -40,14 +40,59 @@ func (ps *ProcessService) checkExperimentRunning() error {
 	return nil
 }
 
-// Start experiment process
-func (ps *ProcessService) StartExperimentProcess(ctx context.Context, id string, record ExperimentRecord) (*os.Process, error) {
+func (ps *ProcessService) StartLocalExperimentProcess(ctx context.Context, id string, record ExperimentRecord, nickname *string) (*os.Process, error) {
+	if record.Experiment.Address == nil || *record.Experiment.Address == "" {
+		return nil, fmt.Errorf("experiment address is empty")
+	}
+
+	workingDir, err := filepath.Abs(*record.Experiment.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %v", err)
+	}
+
+	if _, err := os.Stat(workingDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("directory %s does not exist", workingDir)
+	}
+
+	return ps.StartProcess(ctx, id, record, workingDir, nickname)
+}
+
+func (ps *ProcessService) StartExperimentProcess(ctx context.Context, id string, record ExperimentRecord, nickname *string) (*os.Process, error) {
+	if record.Experiment.Nickname == "" {
+		return nil, fmt.Errorf("experiment nickname is empty")
+	}
+
 	// create working directory for experiment
 	workingDir := filepath.Join(experimentsBaseDir, record.Experiment.Nickname)
 
+	if err := os.MkdirAll(experimentsBaseDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create base directory: %v", err)
+	}
+
+	if _, err := os.Stat(workingDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("directory %s does not exist", workingDir)
+	}
+
+	return ps.StartProcess(ctx, id, record, workingDir, nickname)
+}
+
+// Start experiment process
+func (ps *ProcessService) StartProcess(ctx context.Context, id string, record ExperimentRecord, workingDir string, nickname *string) (*os.Process, error) {
 	// configure experiment command
-	args := strings.Fields(record.Experiment.Execs[0].Exec)
-	cmd := exec.Command(args[0], args[1:]...)
+	var args []string
+	var cmd *exec.Cmd
+	if nickname != nil {
+		for _, e := range record.Experiment.Execs {
+			if e.Nickname == nickname {
+				args = strings.Fields(e.Exec)
+				cmd = exec.Command(args[0], args[1:]...)
+			}
+		}
+	} else {
+		args = strings.Fields(record.Experiment.Execs[0].Exec)
+		cmd = exec.Command(args[0], args[1:]...)
+	}
+
 	cmd.Dir = workingDir
 
 	// redirect experiment output to stdout and stderr
