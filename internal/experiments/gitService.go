@@ -14,9 +14,24 @@ import (
 )
 
 func gitInitExperiment(record ExperimentRecord) ([]byte, error) {
+	// check if experiment is uninitialized
+	// if not, return error
+	if record.Status != string(Uninitialized) {
+		return nil, fmt.Errorf("experiment is already initialized")
+	}
+
 	// ensure experiments base directory exists
 	if err := os.MkdirAll(experimentsBaseDir, 0755); err != nil {
 		return nil, err
+	}
+
+	// check if experiment directory already exists
+	// if it does, remove it
+	dstDir := filepath.Join(experimentsBaseDir, record.Experiment.Nickname)
+	if _, err := os.Stat(dstDir); err == nil {
+		if err := os.RemoveAll(dstDir); err != nil {
+			return nil, fmt.Errorf("failed to remove existing directory: %v", err)
+		}
 	}
 
 	// clone experiment repository to experiments base directory with nickname as directory name
@@ -48,8 +63,16 @@ func gitInitExperiment(record ExperimentRecord) ([]byte, error) {
 }
 
 func gitUpdateExperiment(record ExperimentRecord) ([]byte, error) {
-	// initialize experiments working directory
+	// check if experiment is initialized
+	if record.Status == string(Uninitialized) {
+		return nil, fmt.Errorf("experiment is uninitialized")
+	}
+
+	// check if experiment directory exists
 	dir := filepath.Join(experimentsBaseDir, record.Experiment.Nickname)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("experiment directory does not exist")
+	}
 
 	// run git pull command
 	cmd := exec.Command("git", "-C", dir, "pull")
@@ -62,8 +85,16 @@ func gitUpdateExperiment(record ExperimentRecord) ([]byte, error) {
 }
 
 func gitSwitch(record ExperimentRecord, branch string) ([]byte, error) {
+	// check if experiment is initialized
+	if record.Status == string(Uninitialized) {
+		return nil, fmt.Errorf("experiment is uninitialized")
+	}
+
 	// initialize experiments working directory
 	dir := filepath.Join(experimentsBaseDir, record.Experiment.Nickname)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("experiment directory does not exist")
+	}
 
 	// run git switch command
 	cmd := exec.Command("git", "-C", dir, "switch", branch)

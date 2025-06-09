@@ -18,6 +18,7 @@ var (
 	repo           = &Repository{}
 	processService = &ProcessService{}
 	logKey         = "experiments"
+	dataFS         = &DataFs{}
 )
 
 // Get Experiments info endpoint
@@ -39,6 +40,17 @@ func RegisterExperimentHandler(c *gin.Context) {
 		return
 	}
 
+	experiments := repo.LoadAll()
+	for _, exp := range experiments {
+		if exp.Experiment.Nickname == experiment.Nickname {
+			c.JSON(http.StatusConflict, commonTypes.APIError{
+				Error:  "experiment already exists",
+				Detail: fmt.Sprintf("experiment with name %s already exists", experiment.Nickname),
+			})
+			return
+		}
+	}
+
 	now := time.Now()
 	record := ExperimentRecord{
 		ID:           uuid.New().String(),
@@ -46,6 +58,19 @@ func RegisterExperimentHandler(c *gin.Context) {
 		RegisterTime: now.String(),
 		LastUpdate:   now.String(),
 		Experiment:   experiment,
+	}
+
+	if record.Experiment.DataPath != nil && *record.Experiment.DataPath != "" {
+		path, err := filepath.Abs(*record.Experiment.DataPath)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, commonTypes.APIError{
+				Error:  "invalid data path",
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		dataFS.Add(path)
 	}
 
 	repo.Store(record)
@@ -58,6 +83,15 @@ func DeleteAllExperimentRecordsHandler(c *gin.Context) {
 	repo.Clear()
 
 	c.Status(http.StatusOK)
+}
+
+// Get Experiment info by id endpoint
+func GetExperimentRecordHandler(c *gin.Context) {
+	id := c.Param("id")
+
+	record := repo.load(id)
+
+	c.JSON(http.StatusOK, record)
 }
 
 // Update Experiment info by id endpoint
@@ -82,15 +116,6 @@ func UpdateExperimentRecordHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, record)
 }
 
-// Get Experiment info by id endpoint
-func GetExperimentRecordHandler(c *gin.Context) {
-	id := c.Param("id")
-
-	record := repo.load(id)
-
-	c.JSON(http.StatusOK, record)
-}
-
 // Delete experiment record by id endpoint
 func DeleteExperimentRecordHandler(c *gin.Context) {
 	id := c.Param("id")
@@ -99,77 +124,29 @@ func DeleteExperimentRecordHandler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-// Start experiment by id endpoint
-func StartExperimentHandler(c *gin.Context) {
+// Init experiment by git clone
+func GitInitExperimentHandler(c *gin.Context) {
 	id := c.Param("id")
+	record := repo.LoadAndDelete(id)
+	defer func() {
+		repo.Store(record)
+	}()
 
-	// validate experiment record
-	record := repo.load(id)
-	if err := validateExecs(record); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  "failed to validate experiment exec command",
-			Detail: err.Error(),
-		})
-		return
-	}
-
-	// check if experiment is already running
-	if err := processService.checkExperimentRunning(); err != nil {
-		c.AbortWithStatusJSON(http.StatusConflict, commonTypes.APIError{
-			Error:  "experiment already running",
-			Detail: err.Error(),
-		})
-		return
-	}
-
-	// start experiment process
-	process, err := processService.StartExperimentProcess(c.Request.Context(), id, record)
+	output, err := gitInitExperiment(record)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  "failed to start experiment process",
+		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to initialize experiment",
 			Detail: err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "experiment started successfully",
-		"pid":     process.Pid,
-		"id":      id,
-	})
-}
-
-// Stop experiment by id endpoint
-func StopExperimentHandler(c *gin.Context) {
-	id := c.Param("id")
-
-	// check if experiment is running
-	if processService.currentExperiment == nil {
-		c.JSON(http.StatusNotFound, commonTypes.APIError{
-			Error:  fmt.Sprintf("no running experiment found with ID %s", id),
-			Detail: "",
-		})
-		return
-	}
-
-	// stop experiment process
-	if err := processService.currentExperiment.Kill(); err != nil {
-		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  fmt.Sprintf("failed to stop experiment with ID %s", id),
-			Detail: err.Error(),
-		})
-		return
-	}
-
-	processService.currentExperimentMutex.Lock()
-	defer processService.currentExperimentMutex.Unlock()
-
-	// initialize the current experiment to nil
-	processService.currentExperiment = nil
+	record.Status = string(Ok)
+	record.LastUpdate = time.Now().String()
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "experiment stopped successfully",
-		"id":      id,
+		"message": "experiment initialized successfully",
+		"output":  string(output),
 	})
 }
 
@@ -177,7 +154,9 @@ func StopExperimentHandler(c *gin.Context) {
 func GitUpdateExperimentHandler(c *gin.Context) {
 	id := c.Param("id")
 	record := repo.LoadAndDelete(id)
-	defer repo.Store(record)
+	defer func() {
+		repo.Store(record)
+	}()
 
 	output, err := gitUpdateExperiment(record)
 	if err != nil {
@@ -196,37 +175,14 @@ func GitUpdateExperimentHandler(c *gin.Context) {
 	})
 }
 
-// Init experiment by git clone
-func GitInitExperimentHandler(c *gin.Context) {
-	id := c.Param("id")
-	record := repo.LoadAndDelete(id)
-
-	output, err := gitInitExperiment(record)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  "failed to initialize experiment",
-			Detail: err.Error(),
-		})
-		repo.Store(record)
-		return
-	}
-
-	record.Status = "test"
-	record.LastUpdate = time.Now().String()
-	repo.Store(record)
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "experiment initialized successfully",
-		"output":  string(output),
-	})
-}
-
-func GitExperimentBranchHandler(c *gin.Context) {
+func GitExperimentSwitchBranchHandler(c *gin.Context) {
 	id := c.Param("id")
 	branch := c.Param("branch")
 
 	record := repo.LoadAndDelete(id)
-	defer repo.Store(record)
+	defer func() {
+		repo.Store(record)
+	}()
 
 	output, err := gitSwitch(record, branch)
 	if err != nil {
@@ -248,7 +204,9 @@ func GitExperimentBranchHandler(c *gin.Context) {
 func ArchiveExperimentInitHandler(c *gin.Context) {
 	id := c.Param("id")
 	record := repo.LoadAndDelete(id)
-	defer repo.Store(record)
+	defer func() {
+		repo.Store(record)
+	}()
 
 	tmpDir := c.GetString("tmpDir")
 	tmpFilePath := c.GetString("tmpFilePath")
@@ -263,12 +221,15 @@ func ArchiveExperimentInitHandler(c *gin.Context) {
 	}
 
 	record.Status = string(Ok)
+	c.Status(http.StatusCreated)
 }
 
 func ArchiveExperimentUpdateHandler(c *gin.Context) {
 	id := c.Param("id")
 	record := repo.LoadAndDelete(id)
-	defer repo.Store(record)
+	defer func() {
+		repo.Store(record)
+	}()
 
 	tmpDir := c.GetString("tmpDir")
 	tmpFilePath := c.GetString("tmpFilePath")
@@ -283,6 +244,7 @@ func ArchiveExperimentUpdateHandler(c *gin.Context) {
 	}
 
 	record.Status = string(Ok)
+	c.Status(http.StatusCreated)
 }
 
 func downloadArchiveMiddleware() gin.HandlerFunc {
@@ -338,6 +300,138 @@ func downloadArchiveMiddleware() gin.HandlerFunc {
 	}
 }
 
+// Start experiment by id endpoint
+func StartExperimentHandler(c *gin.Context) {
+	id := c.Param("id")
+	record := repo.load(id)
+
+	var process *os.Process
+	var err error
+	if record.Experiment.Type == string(Local) {
+		process, err = processService.StartLocalExperimentProcess(c.Request.Context(), id, record, nil)
+	} else {
+		process, err = processService.StartExperimentProcess(c.Request.Context(), id, record, nil)
+	}
+
+	// start experiment process
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to start experiment process",
+			Detail: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "experiment started successfully",
+		"pid":     process.Pid,
+		"id":      id,
+	})
+}
+
+func StartSpecificExperimentHandler(c *gin.Context) {
+	id := c.Param("id")
+	nickname := c.Param("nickname")
+	record := repo.load(id)
+
+	found := false
+	for _, e := range record.Experiment.Execs {
+		if e.Nickname == &nickname {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  "experiment exec not found",
+			Detail: fmt.Sprintf("experiment exec with nickname %s not found", nickname),
+		})
+		return
+	}
+
+	var process *os.Process
+	var err error
+	if record.Experiment.Type == string(Local) {
+		process, err = processService.StartLocalExperimentProcess(c.Request.Context(), id, record, &nickname)
+	} else {
+		process, err = processService.StartExperimentProcess(c.Request.Context(), id, record, &nickname)
+	}
+
+	// start experiment process
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to start experiment process",
+			Detail: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "experiment started successfully",
+		"pid":     process.Pid,
+		"id":      id,
+	})
+}
+
+func StartExperimentMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		// validate experiment record
+		record := repo.load(id)
+		if err := validateExecs(record); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+				Error:  "failed to validate experiment exec command",
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		// check if experiment is already running
+		if err := processService.checkExperimentRunning(); err != nil {
+			c.AbortWithStatusJSON(http.StatusConflict, commonTypes.APIError{
+				Error:  "experiment already running",
+				Detail: err.Error(),
+			})
+			return
+		}
+	}
+}
+
+// Stop experiment by id endpoint
+func StopExperimentHandler(c *gin.Context) {
+	id := c.Param("id")
+
+	// check if experiment is running
+	if processService.currentExperiment == nil {
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("no running experiment found with ID %s", id),
+			Detail: "",
+		})
+		return
+	}
+
+	// stop experiment process
+	if err := processService.currentExperiment.Kill(); err != nil {
+		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  fmt.Sprintf("failed to stop experiment with ID %s", id),
+			Detail: err.Error(),
+		})
+		return
+	}
+
+	processService.currentExperimentMutex.Lock()
+	defer processService.currentExperimentMutex.Unlock()
+
+	// initialize the current experiment to nil
+	processService.currentExperiment = nil
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "experiment stopped successfully",
+		"id":      id,
+	})
+}
+
 func validateIfExperimentExistsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -354,6 +448,7 @@ func validateIfExperimentExistsMiddleware() gin.HandlerFunc {
 }
 
 func RegisterRoutes(r *gin.Engine) {
+	r.StaticFS("/data", dataFS)
 	expGroup := r.Group("/exps")
 	{
 		expGroup.GET("", GetExperimentRecordsHandler)
@@ -372,18 +467,23 @@ func RegisterRoutes(r *gin.Engine) {
 			{
 				gitGroup.POST("", GitInitExperimentHandler)
 				gitGroup.PUT("", GitUpdateExperimentHandler)
-				gitGroup.POST("/:branch", GitExperimentBranchHandler)
+				gitGroup.POST("/:branch", GitExperimentSwitchBranchHandler)
 			}
 
 			archiveGroup := idGroup.Group("/artifacts")
 			archiveGroup.Use(validateArchiveMiddleware())
 			archiveGroup.Use(downloadArchiveMiddleware())
 			{
-				idGroup.POST("", ArchiveExperimentInitHandler)
-				idGroup.PUT("", ArchiveExperimentUpdateHandler)
+				archiveGroup.POST("", ArchiveExperimentInitHandler)
+				archiveGroup.PUT("", ArchiveExperimentUpdateHandler)
 			}
 
-			idGroup.POST("/start", StartExperimentHandler)
+			startGroup := idGroup.Group("/start")
+			startGroup.Use(StartExperimentMiddleware())
+			{
+				startGroup.POST("", StartExperimentHandler)
+				startGroup.POST("/:nickname", StartExperimentHandler)
+			}
 			idGroup.POST("/stop", StopExperimentHandler)
 		}
 	}

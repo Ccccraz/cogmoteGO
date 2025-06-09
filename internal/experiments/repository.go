@@ -2,6 +2,7 @@ package experiments
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -53,15 +54,22 @@ func (r *Repository) initPaths() {
 func (r *Repository) Store(record ExperimentRecord) {
 	r.experimentRecords.Store(record.ID, record)
 	r.saveJson()
+	logger.Logger.Debug(
+		"experiment record stored",
+		slog.Group(
+			logKey,
+			slog.String("id", record.ID),
+			slog.Any("record", record),
+		),
+	)
 }
 
 func (r *Repository) Delete(id string) {
+	record := r.load(id)
+	r.DeleteFile(record)
+
 	r.experimentRecords.Delete(id)
 	r.saveJson()
-}
-
-func (r *Repository) Range(f func(key, value any) bool) {
-	r.experimentRecords.Range(f)
 }
 
 func (r *Repository) LoadAll() []ExperimentRecord {
@@ -76,7 +84,42 @@ func (r *Repository) LoadAll() []ExperimentRecord {
 }
 
 func (r *Repository) Clear() {
+	r.experimentRecords.Range(
+		func(key, value any) bool {
+			record := value.(ExperimentRecord)
+			r.DeleteFile(record)
+			return true
+		},
+	)
 	r.experimentRecords.Clear()
+	r.saveJson()
+}
+
+func (r *Repository) DeleteFile(record ExperimentRecord) error {
+	var path string
+	var err error
+	if record.Experiment.Type == string(Local) {
+		if record.Experiment.Address == nil || *record.Experiment.Address == "" {
+			return fmt.Errorf("experiment address is empty")
+		}
+
+		path, err = filepath.Abs(*record.Experiment.Address)
+		if err != nil {
+			return err
+		}
+
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		path = filepath.Join(experimentsBaseDir, record.Experiment.Nickname)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	os.RemoveAll(path)
+	return nil
 }
 
 // load and validate experiment record
