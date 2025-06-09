@@ -2,18 +2,21 @@ package experiments
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
+	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 var (
-	repo           *Repository
-	processService *ProcessService
+	repo           = &Repository{}
+	processService = &ProcessService{}
 	logKey         = "experiments"
 )
 
@@ -197,7 +200,6 @@ func GitUpdateExperimentHandler(c *gin.Context) {
 func GitInitExperimentHandler(c *gin.Context) {
 	id := c.Param("id")
 	record := repo.LoadAndDelete(id)
-	defer repo.Store(record)
 
 	output, err := gitInitExperiment(record)
 	if err != nil {
@@ -205,10 +207,13 @@ func GitInitExperimentHandler(c *gin.Context) {
 			Error:  "failed to initialize experiment",
 			Detail: err.Error(),
 		})
+		repo.Store(record)
 		return
 	}
 
-	record.Status = string(Ok)
+	record.Status = "test"
+	record.LastUpdate = time.Now().String()
+	repo.Store(record)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "experiment initialized successfully",
@@ -245,44 +250,92 @@ func ArchiveExperimentInitHandler(c *gin.Context) {
 	record := repo.LoadAndDelete(id)
 	defer repo.Store(record)
 
-	file, err := c.FormFile("file")
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, commonTypes.APIError{
-			Error:  "failed to get file from request",
+	tmpDir := c.GetString("tmpDir")
+	tmpFilePath := c.GetString("tmpFilePath")
+	defer os.RemoveAll(tmpDir)
+
+	if err := ArchiveInitExperiment(record, tmpFilePath); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to initialize experiment",
 			Detail: err.Error(),
 		})
 		return
 	}
 
-	if !validateArchiveFormat(file) {
-		c.AbortWithStatusJSON(http.StatusBadRequest, commonTypes.APIError{
-			Error:  "invalid archive format",
-			Detail: "currently only zip is supported",
-		})
-	}
-
-	tempDir, err := os.MkdirTemp(experimentsBaseDir, "upload-")
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  "failed to create temporary directory",
-			Detail: err.Error(),
-		})
-	}
-	defer os.RemoveAll(tempDir)
-
-	if err := c.SaveUploadedFile(file, tempDir); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
-			Error:  "failed to save uploaded file",
-			Detail: err.Error(),
-		})
-	}
-
-	ArchiveInitExperiment(record, tempDir)
-
 	record.Status = string(Ok)
 }
 
 func ArchiveExperimentUpdateHandler(c *gin.Context) {
+	id := c.Param("id")
+	record := repo.LoadAndDelete(id)
+	defer repo.Store(record)
+
+	tmpDir := c.GetString("tmpDir")
+	tmpFilePath := c.GetString("tmpFilePath")
+	defer os.RemoveAll(tmpDir)
+
+	if err := ArchiveUpdateExperiment(record, tmpFilePath); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+			Error:  "failed to initialize experiment",
+			Detail: err.Error(),
+		})
+		return
+	}
+
+	record.Status = string(Ok)
+}
+
+func downloadArchiveMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, commonTypes.APIError{
+				Error:  "failed to get file from request",
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		if !validateArchiveFormat(file) {
+			c.AbortWithStatusJSON(http.StatusBadRequest, commonTypes.APIError{
+				Error:  "invalid archive format",
+				Detail: "currently only zip is supported",
+			})
+			return
+		}
+
+		tmpDir, err := os.MkdirTemp(experimentsBaseDir, "cogmote-")
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+				Error:  "failed to create temporary directory",
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		tmpFilePath := filepath.Join(tmpDir, file.Filename)
+		logger.Logger.Debug(
+			"downloading file",
+			slog.Group(
+				logKey,
+				slog.String("downDir", tmpDir),
+				slog.String("zipSource", tmpFilePath),
+			),
+		)
+
+		if err := c.SaveUploadedFile(file, tmpFilePath); err != nil {
+			os.RemoveAll(tmpDir)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, commonTypes.APIError{
+				Error:  "failed to save uploaded file",
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		c.Set("tmpDir", tmpDir)
+		c.Set("tmpFilePath", tmpFilePath)
+		c.Next()
+	}
 }
 
 func validateIfExperimentExistsMiddleware() gin.HandlerFunc {
@@ -314,15 +367,24 @@ func RegisterRoutes(r *gin.Engine) {
 			idGroup.PUT("", UpdateExperimentRecordHandler)
 			idGroup.DELETE("", DeleteExperimentRecordHandler)
 
-			r.POST("/git", GitInitExperimentHandler)
-			r.PUT("/git", GitUpdateExperimentHandler)
-			r.POST("/git/:branch", GitExperimentBranchHandler)
+			gitGroup := idGroup.Group("/git")
+			gitGroup.Use(validateGitMiddleware())
+			{
+				gitGroup.POST("", GitInitExperimentHandler)
+				gitGroup.PUT("", GitUpdateExperimentHandler)
+				gitGroup.POST("/:branch", GitExperimentBranchHandler)
+			}
 
-			r.POST("/artifacts", ArchiveExperimentInitHandler)
-			r.PUT("/artifacts", ArchiveExperimentUpdateHandler)
+			archiveGroup := idGroup.Group("/artifacts")
+			archiveGroup.Use(validateArchiveMiddleware())
+			archiveGroup.Use(downloadArchiveMiddleware())
+			{
+				idGroup.POST("", ArchiveExperimentInitHandler)
+				idGroup.PUT("", ArchiveExperimentUpdateHandler)
+			}
 
-			r.POST("/start", StartExperimentHandler)
-			r.POST("/stop", StopExperimentHandler)
+			idGroup.POST("/start", StartExperimentHandler)
+			idGroup.POST("/stop", StopExperimentHandler)
 		}
 	}
 }

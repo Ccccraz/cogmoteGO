@@ -1,12 +1,16 @@
 package experiments
 
 import (
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
+	"github.com/gin-gonic/gin"
 )
 
 func gitInitExperiment(record ExperimentRecord) ([]byte, error) {
@@ -69,4 +73,25 @@ func gitSwitch(record ExperimentRecord, branch string) ([]byte, error) {
 	}
 
 	return output, nil
+}
+
+func validateGitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		record := repo.load(id)
+		if record.Experiment.Type != "git" {
+			c.AbortWithStatusJSON(
+				http.StatusBadRequest,
+				commonTypes.APIError{
+					Error:  "experiment type is not git",
+					Detail: fmt.Sprintf("experiment type is %s", record.Experiment.Type),
+				},
+			)
+
+			return
+		}
+
+		c.Next()
+	}
 }
