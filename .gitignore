@@ -1,8 +1,12 @@
 # Custom
 bin/
+build/
+dist/
 .env*
 .vscode/
 vcpkg_installed/
+
+.DS_Store
 
 # Created by https://www.toptal.com/developers/gitignore/api/go
 # Edit at https://www.toptal.com/developers/gitignore?templates=go
