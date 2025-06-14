@@ -84,6 +84,10 @@ func createService() service.Service {
 		svcConfig.Option["UserService"] = true
 	}
 
+	if runtime.GOOS == "darwin" {
+		svcConfig.Option["UserService"] = true
+	}
+
 	prg := &program{}
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
