@@ -18,10 +18,6 @@ import (
 var (
 	user      string
 	password  string
-	uninstall bool
-	start     bool
-	stop      bool
-	restart   bool
 )
 
 type program struct {
@@ -65,28 +61,27 @@ func init() {
 
 func createService() service.Service {
 	logger.Init(true)
-
 	options := make(service.KeyValue)
-
-	if runtime.GOOS == "windows" {
-		options["Password"] = password
-		options["OnFailure"] = "restart"
-		options["OnFailureDelayDuration"] = "60s"
-	}
-
-	if runtime.GOOS == "linux" {
-		options["UserService"] = true
-	}
-
-	if runtime.GOOS == "darwin" {
-	}
 
 	svcConfig := &service.Config{
 		Name:        "cogmoteGO",
 		DisplayName: "cogmoteGO",
 		Description: "cogmoteGO is the 'air traffic control' for remote neuroexperiments: a lightweight Go system coordinating distributed data streams, commands, and full experiment lifecycle management - from deployment to data collection.",
-		UserName: user,
-		Option:   options,
+		UserName:    user,
+		Option:      options,
+	}
+
+	if runtime.GOOS == "windows" {
+		svcConfig.Option["Password"] = password
+		svcConfig.Option["OnFailure"] = "restart"
+		svcConfig.Option["OnFailureDelayDuration"] = "60s"
+	}
+
+	if runtime.GOOS == "linux" {
+		svcConfig.Dependencies = []string{
+			"After=network.target",
+		}
+		svcConfig.Option["UserService"] = true
 	}
 
 	prg := &program{}
