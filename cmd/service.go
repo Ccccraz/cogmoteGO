@@ -54,8 +54,8 @@ var serviceCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serviceCmd)
 	if runtime.GOOS == "windows" {
-		serviceCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "install service with password")
-		serviceCmd.MarkPersistentFlagRequired("password")
+		serviceCmd.Flags().StringVarP(&password, "password", "p", "", "install service with password")
+		serviceCmd.MarkFlagRequired("password")
 	}
 }
 
