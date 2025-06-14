@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"os/user"
 	"runtime"
 
 	alive "github.com/Ccccraz/cogmoteGO/internal"
@@ -16,7 +17,6 @@ import (
 )
 
 var (
-	user     string
 	password string
 )
 
@@ -54,8 +54,8 @@ var serviceCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serviceCmd)
 	if runtime.GOOS == "windows" {
-		serviceCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "install service for user")
 		serviceCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "install service with password")
+		serviceCmd.MarkPersistentFlagRequired("password")
 	}
 }
 
@@ -67,14 +67,21 @@ func createService() service.Service {
 		Name:        "cogmoteGO",
 		DisplayName: "cogmoteGO",
 		Description: "cogmoteGO is the 'air traffic control' for remote neuroexperiments: a lightweight Go system coordinating distributed data streams, commands, and full experiment lifecycle management - from deployment to data collection.",
-		UserName:    user,
 		Option:      options,
 	}
 
 	if runtime.GOOS == "windows" {
+		username, err := user.Current()
+		if err != nil {
+			logger.Logger.Info(err.Error())
+		}
+		svcConfig.UserName = username.Username
+
 		svcConfig.Option["Password"] = password
 		svcConfig.Option["OnFailure"] = "restart"
 		svcConfig.Option["OnFailureDelayDuration"] = "60s"
+
+		logger.Logger.Info("Service will be installed as user: " + username.Username)
 	}
 
 	if runtime.GOOS == "linux" {
