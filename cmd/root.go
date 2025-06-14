@@ -4,13 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	alive "github.com/Ccccraz/cogmoteGO/internal"
-	"github.com/Ccccraz/cogmoteGO/internal/broadcast"
-	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
-	"github.com/Ccccraz/cogmoteGO/internal/experiments"
-	"github.com/Ccccraz/cogmoteGO/internal/health"
-	"github.com/Ccccraz/cogmoteGO/internal/logger"
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -39,7 +32,8 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		Serve()
+		service := createService()
+		service.Run()
 	},
 }
 
@@ -79,41 +73,6 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
-}
-
-// Default entry point
-func Serve() {
-	var dev bool
-
-	if envMode := os.Getenv("GIN_MODE"); envMode == "" {
-		gin.SetMode(gin.ReleaseMode)
-		dev = false
-	} else {
-		gin.SetMode(envMode)
-		dev = true
-	}
-
-	logger.Init(dev)
-	experiments.Init()
-
-	r := gin.New()
-
-	if gin.Mode() == gin.DebugMode {
-		r.Use(gin.Logger())
-	} else {
-		r.Use(logger.GinMiddleware(logger.Logger))
-	}
-
-	r.Use(gin.Recovery())
-	r.UseH2C = true
-
-	broadcast.RegisterRoutes(r)
-	cmdproxy.RegisterRoutes(r)
-	health.RegisterRoutes(r)
-	alive.RegisterRoutes(r)
-	experiments.RegisterRoutes(r)
-
-	r.Run(":9012")
 }
 
 func printVersion() {
