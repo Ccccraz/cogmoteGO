@@ -1,14 +1,27 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
-	"fmt"
+	"os"
+	"runtime"
 
+	alive "github.com/Ccccraz/cogmoteGO/internal"
+	"github.com/Ccccraz/cogmoteGO/internal/broadcast"
+	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
+	"github.com/Ccccraz/cogmoteGO/internal/experiments"
+	"github.com/Ccccraz/cogmoteGO/internal/health"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
+	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
+)
+
+var (
+	user      string
+	password  string
+	uninstall bool
+	start     bool
+	stop      bool
+	restart   bool
 )
 
 type program struct {
@@ -30,26 +43,50 @@ func (p *program) Stop(s service.Service) error {
 // serviceCmd represents the service command
 var serviceCmd = &cobra.Command{
 	Use:   "service",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "install cogmoteGO as a service",
 	Run: func(cmd *cobra.Command, args []string) {
-		register()
+		service := createService()
+		err := service.Install()
+		if err != nil {
+			logger.Logger.Info(err.Error())
+		} else {
+			logger.Logger.Info("Service installed")
+		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serviceCmd)
+	if runtime.GOOS == "windows" {
+		serviceCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "install service for user")
+		serviceCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "install service with password")
+	}
 }
 
-func register() {
+func createService() service.Service {
+	logger.Init(true)
+
+	options := make(service.KeyValue)
+
+	if runtime.GOOS == "windows" {
+		options["Password"] = password
+		options["OnFailure"] = "restart"
+		options["OnFailureDelayDuration"] = "60s"
+	}
+
+	if runtime.GOOS == "linux" {
+		options["UserService"] = true
+	}
+
+	if runtime.GOOS == "darwin" {
+	}
+
 	svcConfig := &service.Config{
-		Name:        "cogmoteGOService",
-		DisplayName: "cogmoteGOService",
+		Name:        "cogmoteGO",
+		DisplayName: "cogmoteGO",
+		Description: "cogmoteGO is the 'air traffic control' for remote neuroexperiments: a lightweight Go system coordinating distributed data streams, commands, and full experiment lifecycle management - from deployment to data collection.",
+		UserName: user,
+		Option:   options,
 	}
 
 	prg := &program{}
@@ -58,8 +95,40 @@ func register() {
 		logger.Logger.Info(err.Error())
 	}
 
-	err = s.Install()
-	if err != nil {
-		fmt.Printf("Failed to install: %s\n", err.Error())
+	return s
+}
+
+// Default entry point
+func Serve() {
+	var dev bool
+
+	if envMode := os.Getenv("GIN_MODE"); envMode == "" {
+		gin.SetMode(gin.ReleaseMode)
+		dev = false
+	} else {
+		gin.SetMode(envMode)
+		dev = true
 	}
+
+	logger.Init(dev)
+	experiments.Init()
+
+	r := gin.New()
+
+	if gin.Mode() == gin.DebugMode {
+		r.Use(gin.Logger())
+	} else {
+		r.Use(logger.GinMiddleware(logger.Logger))
+	}
+
+	r.Use(gin.Recovery())
+	r.UseH2C = true
+
+	broadcast.RegisterRoutes(r)
+	cmdproxy.RegisterRoutes(r)
+	health.RegisterRoutes(r)
+	alive.RegisterRoutes(r)
+	experiments.RegisterRoutes(r)
+
+	r.Run(":9012")
 }
