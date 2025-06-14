@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
@@ -17,8 +17,8 @@ TMP_DIR=$(mktemp -d -t "${BINARY_NAME}-XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 INSTALLED_CMD="$INSTALL_DIR/$BINARY_NAME"
 
-echo -e "${BLUE}=== ${BINARY_NAME} ===${NC}"
-echo -e "${YELLOW}Temporary directory: ${TMP_DIR}${NC}"
+printf "${BLUE}=== ${BINARY_NAME} ===${NC}\n"
+printf "${YELLOW}Temporary directory: ${TMP_DIR}${NC}\n"
 
 # Detect system architecture
 ARCH=$(uname -m)
@@ -30,15 +30,15 @@ case "$ARCH" in
         ARCH="arm64"
         ;;
     *)
-        echo -e "${RED}Error: Unsupported architecture ${ARCH}${NC}"
+        printf "${RED}Error: Unsupported architecture ${ARCH}${NC}\n"
         exit 1
         ;;
 esac
-echo -e "System architecture: ${GREEN}${ARCH}${NC}"
+printf "System architecture: ${GREEN}${ARCH}${NC}\n"
 
 # Get installed version with 'v' prefix
 get_installed_version() {
-    if [[ -x "$INSTALLED_CMD" ]]; then
+    if [ -x "$INSTALLED_CMD" ]; then
         echo "v$($INSTALLED_CMD --version 2>/dev/null | awk '{print $2}' | head -1)"
     else
         echo ""
@@ -46,53 +46,53 @@ get_installed_version() {
 }
 
 INSTALLED_VERSION=$(get_installed_version)
-if [[ -n "$INSTALLED_VERSION" ]]; then
-    echo -e "Installed version: ${GREEN}${INSTALLED_VERSION}${NC}"
+if [ -n "$INSTALLED_VERSION" ]; then
+    printf "Installed version: ${GREEN}${INSTALLED_VERSION}${NC}\n"
 fi
 
 # Get latest release
-echo -e "${BLUE}[1/4] ${NC}Checking latest version..."
+printf "${BLUE}[1/4] ${NC}Checking latest version...\n"
 LATEST_RELEASE=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-echo -e "Latest version: ${GREEN}${LATEST_RELEASE}${NC}"
+printf "Latest version: ${GREEN}${LATEST_RELEASE}${NC}\n"
 
 # Check if installation/update is needed
-if [[ -n "$INSTALLED_VERSION" ]]; then
-    if [[ "$INSTALLED_VERSION" == "$LATEST_RELEASE" ]]; then
-        echo -e "${GREEN}Already up to date${NC}"
+if [ -n "$INSTALLED_VERSION" ]; then
+    if [ "$INSTALLED_VERSION" = "$LATEST_RELEASE" ]; then
+        printf "${GREEN}Already up to date${NC}\n"
         exit 0
     else
-        echo -e "${YELLOW}New version available ${INSTALLED_VERSION} → ${LATEST_RELEASE}${NC}"
+        printf "${YELLOW}New version available ${INSTALLED_VERSION} → ${LATEST_RELEASE}${NC}\n"
     fi
 else
-    echo -e "${YELLOW}No installation detected, performing fresh install${NC}"
+    printf "${YELLOW}No installation detected, performing fresh install${NC}\n"
 fi
 
 # Build download URL
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/${BINARY_NAME}-linux-${ARCH}-${LATEST_RELEASE}.tar.gz"
-echo -e "Download URL: ${YELLOW}${DOWNLOAD_URL}${NC}"
+printf "Download URL: ${YELLOW}${DOWNLOAD_URL}${NC}\n"
 
 # Download
-echo -e "${BLUE}[2/4] ${NC}Downloading ${BINARY_NAME}..."
+printf "${BLUE}[2/4] ${NC}Downloading ${BINARY_NAME}...\n"
 curl --progress-bar -L "$DOWNLOAD_URL" -o "$TMP_DIR/$BINARY_NAME.tar.gz" || {
-    echo -e "${RED}Download failed!${NC}"
-    rm -rf "$TMV_DIR"
+    printf "${RED}Download failed!${NC}\n"
+    rm -rf "$TMP_DIR"
     exit 1
 }
 
 # Extract
-echo -e "${BLUE}[3/4] ${NC}Extracting..."
+printf "${BLUE}[3/4] ${NC}Extracting...\n"
 tar -xzvf "$TMP_DIR/$BINARY_NAME.tar.gz" -C "$TMP_DIR" || {
-    echo -e "${RED}Extraction failed!${NC}"
+    printf "${RED}Extraction failed!${NC}\n"
     rm -rf "$TMP_DIR"
     exit 1
 }
 
 # Install
-echo -e "${BLUE}[4/4] ${NC}Installing to ${INSTALL_DIR}..."
+printf "${BLUE}[4/4] ${NC}Installing to ${INSTALL_DIR}...\n"
 mkdir -p "$INSTALL_DIR" && \
 mv -v "$TMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME" && \
 chmod +x "$INSTALL_DIR/$BINARY_NAME" || {
-    echo -e "${RED}Installation failed!${NC}"
+    printf "${RED}Installation failed!${NC}\n"
     rm -rf "$TMP_DIR"
     exit 1
 }
@@ -102,21 +102,24 @@ rm -rf "$TMP_DIR"
 
 # Verify installation
 NEW_VERSION="v$($INSTALLED_CMD --version 2>/dev/null | awk '{print $2}' | head -1)"
-if [[ "$NEW_VERSION" == "$LATEST_RELEASE" ]]; then
-    if [[ -n "$INSTALLED_VERSION" ]]; then
-        echo -e "${GREEN}Update successful! ${BINARY_NAME} updated from ${INSTALLED_VERSION} to ${NEW_VERSION}${NC}"
+if [ "$NEW_VERSION" = "$LATEST_RELEASE" ]; then
+    if [ -n "$INSTALLED_VERSION" ]; then
+        printf "${GREEN}Update successful! ${BINARY_NAME} updated from ${INSTALLED_VERSION} to ${NEW_VERSION}${NC}\n"
     else
-        echo -e "${GREEN}Installation successful! ${BINARY_NAME} ${NEW_VERSION} (${ARCH}) installed to ${INSTALL_DIR}${NC}"
+        printf "${GREEN}Installation successful! ${BINARY_NAME} ${NEW_VERSION} (${ARCH}) installed to ${INSTALL_DIR}${NC}\n"
     fi
 else
-    echo -e "${RED}Installation verification failed!${NC}"
+    printf "${RED}Installation verification failed!${NC}\n"
     exit 1
 fi
 
 # Check PATH
-if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-    echo -e "${YELLOW}Warning: ${INSTALL_DIR} is not in your PATH${NC}"
-    echo -e "You can temporarily add it with:"
-    echo -e "  ${BLUE}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
-    echo -e "Or add it to your ~/.bashrc or ~/.zshrc for permanent access"
-fi
+case ":${PATH}:" in
+  *":${INSTALL_DIR}:"*) ;;
+  *)
+    printf "${YELLOW}Warning: ${INSTALL_DIR} is not in your PATH${NC}\n"
+    printf "You can temporarily add it with:\n"
+    printf "  ${BLUE}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}\n"
+    printf "Or add it to your ~/.bashrc or ~/.zshrc for permanent access\n"
+    ;;
+esac
