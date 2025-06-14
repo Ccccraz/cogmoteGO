@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	user      string
-	password  string
+	user     string
+	password string
 )
 
 type program struct {
@@ -99,22 +99,21 @@ func createService() service.Service {
 
 // Default entry point
 func Serve() {
-	var dev bool
+	dev := showVerbose
 
-	if envMode := os.Getenv("GIN_MODE"); envMode == "" {
+	envMode := os.Getenv("GIN_MODE")
+	if envMode == "" {
 		gin.SetMode(gin.ReleaseMode)
-		dev = false
 	} else {
 		gin.SetMode(envMode)
-		dev = true
+		dev = dev || envMode == gin.DebugMode
 	}
 
 	logger.Init(dev)
 	experiments.Init()
 
 	r := gin.New()
-
-	if gin.Mode() == gin.DebugMode {
+	if dev {
 		r.Use(gin.Logger())
 	} else {
 		r.Use(logger.GinMiddleware(logger.Logger))

@@ -12,10 +12,12 @@ var (
 	version  = "dev"
 	commit   = "test"
 	datetime = "unknown"
+
+	cfgFile string
+	showVersion bool
+	showVerbose bool
 )
 
-var cfgFile string
-var showVersion bool
 
 var rootCmd = &cobra.Command{
 	Use:   "cogmoteGO",
@@ -48,7 +50,8 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cogmoteGO.toml)")
-	rootCmd.PersistentFlags().BoolVar(&showVersion, "version", false, "show version information")
+	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "show version information")
+	rootCmd.PersistentFlags().BoolVar(&showVerbose, "verbose", false, "verbose output")
 }
 
 // initConfig reads in config file and ENV variables if set.
