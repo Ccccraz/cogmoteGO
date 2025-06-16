@@ -20,6 +20,12 @@
 curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | sh
 ```
 
+### For Windows
+
+```sh
+winget install ccccraz.cogmoteGO
+```
+
 ## Getting started
 
 ### Run as service
