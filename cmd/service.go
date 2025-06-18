@@ -11,6 +11,7 @@ import (
 	"github.com/Ccccraz/cogmoteGO/internal/experiments"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
@@ -128,6 +129,10 @@ func Serve() {
 
 	r.Use(gin.Recovery())
 	r.UseH2C = true
+
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:1420"}
+	r.Use(cors.New(corsConfig))
 
 	broadcast.RegisterRoutes(r)
 	cmdproxy.RegisterRoutes(r)
