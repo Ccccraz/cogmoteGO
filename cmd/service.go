@@ -8,6 +8,7 @@ import (
 	alive "github.com/Ccccraz/cogmoteGO/internal"
 	"github.com/Ccccraz/cogmoteGO/internal/broadcast"
 	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
+	"github.com/Ccccraz/cogmoteGO/internal/device"
 	"github.com/Ccccraz/cogmoteGO/internal/experiments"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
@@ -139,6 +140,7 @@ func Serve() {
 	health.RegisterRoutes(r)
 	alive.RegisterRoutes(r)
 	experiments.RegisterRoutes(r)
+	device.RegisterRoutes(r)
 
 	r.Run(":9012")
 }
