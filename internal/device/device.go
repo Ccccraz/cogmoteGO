@@ -40,6 +40,6 @@ func GetHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, healthReport)
 }
 
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r gin.IRouter) {
 	r.GET("/device", GetHealth)
 }

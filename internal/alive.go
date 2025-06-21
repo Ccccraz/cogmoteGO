@@ -66,6 +66,6 @@ func GetAlive(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r gin.IRouter) {
 	r.GET("/alive", GetAlive)
 }
