@@ -489,7 +489,7 @@ func DeleteCmdProxy(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r gin.IRouter) {
 	r.GET("/cmds/proxies", GetAllCmdProxies)
 	r.POST("/cmds/proxies", createCmdProxy)
 	r.POST("/cmds/proxies/:nickname", sendCmd)

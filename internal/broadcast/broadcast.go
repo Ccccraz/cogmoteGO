@@ -283,7 +283,7 @@ func DeleteBroadcast(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r gin.IRouter) {
 	r.GET("/broadcast/data", GetBroadcasts)
 	r.POST("/broadcast/data", CreateBroadcast)
 

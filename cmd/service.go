@@ -135,12 +135,14 @@ func Serve() {
 	corsConfig.AllowOrigins = []string{"http://localhost:1420"}
 	r.Use(cors.New(corsConfig))
 
-	broadcast.RegisterRoutes(r)
-	cmdproxy.RegisterRoutes(r)
-	health.RegisterRoutes(r)
-	alive.RegisterRoutes(r)
-	experiments.RegisterRoutes(r)
-	device.RegisterRoutes(r)
+	api := r.Group("/api")
+
+	broadcast.RegisterRoutes(api)
+	cmdproxy.RegisterRoutes(api)
+	health.RegisterRoutes(api)
+	alive.RegisterRoutes(api)
+	experiments.RegisterRoutes(api)
+	device.RegisterRoutes(api)
 
 	r.Run(":9012")
 }

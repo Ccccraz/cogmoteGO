@@ -447,7 +447,7 @@ func validateIfExperimentExistsMiddleware() gin.HandlerFunc {
 	}
 }
 
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r gin.IRouter) {
 	r.StaticFS("/data", dataFS)
 	expGroup := r.Group("/exps")
 	{
