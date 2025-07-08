@@ -196,6 +196,32 @@ func SubscribeBroadcast(c *gin.Context) {
 	}
 }
 
+func GetLatestData(c *gin.Context) {
+	name := c.Param("name")
+	broadEndpointsMu.RLock()
+	endpoint, exists := broadEndpoints[name]
+	broadEndpointsMu.RUnlock()
+	if !exists {
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("data broadcast endpoint: %s does not exist", name),
+			Detail: "",
+		})
+		return
+	}
+	endpoint.mu.Lock()
+	defer endpoint.mu.Unlock()
+	if len(endpoint.history) == 0 {
+		c.JSON(http.StatusNotFound, commonTypes.APIError{
+			Error:  fmt.Sprintf("no data available in endpoint: %s", name),
+			Detail: "",
+		})
+		return
+	}
+
+	latestData := endpoint.history[len(endpoint.history)-1]
+	c.Data(http.StatusOK, "application/json", latestData)
+}
+
 type MockTrialData struct {
 	TrialId        uint   `json:"trial_id"`
 	TrialStartTime int64  `json:"trial_start_time"`
@@ -264,6 +290,34 @@ func GetMockData(c *gin.Context) {
 	}
 }
 
+func GetLatestMockData(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	mockDataChan := make(chan MockTrialData, 1)
+	go func() {
+		GenMockTrialData(ctx, mockDataChan)
+		close(mockDataChan)
+	}()
+
+	select {
+	case data, ok := <-mockDataChan:
+		if !ok {
+			c.JSON(http.StatusInternalServerError, commonTypes.APIError{
+				Error:  "failed to generate mock data",
+				Detail: "",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, data)
+	case <-ctx.Done():
+		c.JSON(http.StatusRequestTimeout, commonTypes.APIError{
+			Error:  "timeout waiting for mock data",
+			Detail: "",
+		})
+	}
+}
+
 func DeleteBroadcast(c *gin.Context) {
 	name := c.Param("name")
 
@@ -288,10 +342,15 @@ func RegisterRoutes(r gin.IRouter) {
 	r.POST("/broadcast/data", CreateBroadcast)
 
 	r.GET("/broadcast/data/mock", headersMiddleware(), GetMockData)
+	r.GET("/broadcast/data/mock/latest", GetLatestMockData)
 
 	r.GET("/broadcast/data/default", headersMiddleware(), func(c *gin.Context) {
 		c.Params = append(c.Params, gin.Param{Key: "name", Value: "default"})
 		SubscribeBroadcast(c)
+	})
+	r.GET("/broadcast/data/default/latest", func(c *gin.Context) {
+		c.Params = append(c.Params, gin.Param{Key: "name", Value: "default"})
+		GetLatestData(c)
 	})
 	r.POST("/broadcast/data/default", func(c *gin.Context) {
 		c.Params = append(c.Params, gin.Param{Key: "name", Value: "default"})
@@ -299,6 +358,7 @@ func RegisterRoutes(r gin.IRouter) {
 	})
 
 	r.GET("/broadcast/data/:name", headersMiddleware(), SubscribeBroadcast)
+	r.GET("/broadcast/data/:name/latest", GetLatestData)
 	r.POST("/broadcast/data/:name", BroadcastData)
 	r.DELETE("/broadcast/data/:name", DeleteBroadcast)
 }
