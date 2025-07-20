@@ -14,7 +14,7 @@
 
 ## Installation
 
-### For Linux
+### For Linux & macOS
 
 ```sh
 curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | sh
@@ -30,7 +30,7 @@ winget install ccccraz.cogmoteGO
 
 ### Run as service
 
-#### For Linux && MacOS
+#### For Linux & macOS
 
 register the service
 
