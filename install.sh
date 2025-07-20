@@ -23,6 +23,8 @@ printf "${YELLOW}Temporary directory: ${TMP_DIR}${NC}\n"
 # Detect system architecture
 ARCH=$(uname -m)
 case "$ARCH" in
+    arm64)
+        ;;
     x86_64)
         ARCH="amd64"
         ;;
@@ -35,6 +37,22 @@ case "$ARCH" in
         ;;
 esac
 printf "System architecture: ${GREEN}${ARCH}${NC}\n"
+
+# Detect os 
+OS=$(uname -s)
+case "$OS" in
+    Darwin)
+        OS="darwin"
+        ;;
+    Linux)
+        OS="linux"
+        ;;
+    *)
+        printf "${RED}Error: Unsupported OS ${ARCH}${NC}\n"
+        exit 1
+        ;;
+esac
+printf "System OS: ${GREEN}${ARCH}${NC}\n"
 
 # Get installed version with 'v' prefix
 get_installed_version() {
@@ -68,7 +86,7 @@ else
 fi
 
 # Build download URL
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/${BINARY_NAME}-linux-${ARCH}-${LATEST_RELEASE}.tar.gz"
+DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_RELEASE/${BINARY_NAME}-${OS}-${ARCH}-${LATEST_RELEASE}.tar.gz"
 printf "Download URL: ${YELLOW}${DOWNLOAD_URL}${NC}\n"
 
 # Download
