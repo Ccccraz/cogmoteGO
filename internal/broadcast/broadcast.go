@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -223,10 +224,11 @@ func GetLatestData(c *gin.Context) {
 }
 
 type MockTrialData struct {
-	TrialId        uint   `json:"trial_id"`
-	TrialStartTime int64  `json:"trial_start_time"`
-	TrialStopTime  int64  `json:"trial_stop_time"`
-	TrialResult    string `json:"trial_result"`
+	TrialId        uint    `json:"trial_id"`
+	TrialStartTime int64   `json:"trial_start_time"`
+	TrialStopTime  int64   `json:"trial_stop_time"`
+	Result         string  `json:"result"`
+	CorrectRate    float64 `json:"correct_rate"`
 }
 
 func GenMockTrialData(ctx context.Context, ch chan<- MockTrialData) {
@@ -234,18 +236,30 @@ func GenMockTrialData(ctx context.Context, ch chan<- MockTrialData) {
 
 	results := []string{"correct", "incorrect", "timeout"}
 
+	var totalTrials uint = 0
+	var correctTrials uint = 0
 	var trialId uint = 1
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			result := results[rand.Intn(len(results))]
+
+			totalTrials++
+			if result == "correct" {
+				correctTrials++
+			}
+
+			correctRate := float64(correctTrials) / float64(totalTrials)
+			correctRate = math.Round(correctRate*100) / 100
 
 			data := MockTrialData{
 				TrialId:        trialId,
 				TrialStartTime: time.Now().Unix(),
 				TrialStopTime:  0,
-				TrialResult:    results[rand.Intn(len(results))],
+				Result:         result,
+				CorrectRate:    correctRate,
 			}
 
 			time.Sleep(time.Duration(rand.Intn(3)+1) * time.Second)
