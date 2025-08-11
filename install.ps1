@@ -55,7 +55,7 @@ Write-Host "Latest version: ${GREEN}${LATEST_RELEASE}${NC}"
 if ($INSTALLED_VERSION) {
     if ($INSTALLED_VERSION -eq $LATEST_RELEASE) {
         Write-Host "${GREEN}Already up to date${NC}"
-        exit 0
+        return
     } else {
         Write-Host "${YELLOW}New version available ${INSTALLED_VERSION} → ${LATEST_RELEASE}${NC}"
     }
