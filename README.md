@@ -15,12 +15,20 @@
 ## Installation
 
 ### For Linux & macOS
+#### By install script
 
 ```sh
-curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | sh
+curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh
 ```
 
 ### For Windows
+#### By install script
+
+```sh
+irm -Uri 'https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.ps1' | iex
+```
+
+#### By winget
 
 ```sh
 winget install ccccraz.cogmoteGO
