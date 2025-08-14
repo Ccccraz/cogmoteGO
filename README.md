@@ -18,7 +18,7 @@
 #### By install script
 
 ```sh
-curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh
+curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | sh
 ```
 
 ### For Windows
