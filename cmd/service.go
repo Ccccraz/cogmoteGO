@@ -132,7 +132,9 @@ func Serve() {
 	r.UseH2C = true
 
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:1420"}
+	corsConfig.AllowOriginFunc = func(origin string) bool {
+		return origin == "http://localhost:1420" || origin == "tauri://localhost"
+	}
 	r.Use(cors.New(corsConfig))
 
 	api := r.Group("/api")
