@@ -133,7 +133,7 @@ func Serve() {
 
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOriginFunc = func(origin string) bool {
-		return origin == "http://localhost:1420" || origin == "tauri://localhost"
+		return origin == "http://localhost:1420" || origin == "tauri://localhost" || origin == "http://tauri.localhost"
 	}
 	r.Use(cors.New(corsConfig))
 
