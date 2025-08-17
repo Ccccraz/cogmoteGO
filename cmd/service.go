@@ -144,7 +144,9 @@ func Serve() {
 	health.RegisterRoutes(api)
 	alive.RegisterRoutes(api)
 	experiments.RegisterRoutes(api)
+	device.SetVersion(version, commit, datetime)
 	device.RegisterRoutes(api)
+
 
 	r.Run(":9012")
 }

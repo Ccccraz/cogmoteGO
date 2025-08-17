@@ -9,6 +9,12 @@ import (
 	"github.com/shirou/gopsutil/v4/host"
 )
 
+var (
+	version  string
+	commit   string
+	datetime string
+)
+
 type Device struct {
 	Username string `json:"username"`
 	Hostname string `json:"hostname"`
@@ -16,6 +22,15 @@ type Device struct {
 	Arch     string `json:"arch"`
 	CPUModel string `json:"cpu"`
 	Uptime   uint64 `json:"uptime"`
+	Version  string `json:"version"`
+	Commit   string `json:"commit"`
+	Datetime string `json:"datetime"`
+}
+
+func SetVersion(v string, c string, d string) {
+	version = v
+	commit = c
+	datetime = d
 }
 
 func GetHealth(c *gin.Context) {
@@ -35,6 +50,9 @@ func GetHealth(c *gin.Context) {
 		Arch:     hostInfo.KernelArch,
 		CPUModel: cpuModel,
 		Uptime:   hostInfo.Uptime,
+		Version:  version,
+		Commit:   commit,
+		Datetime: datetime,
 	}
 
 	c.JSON(http.StatusOK, healthReport)
