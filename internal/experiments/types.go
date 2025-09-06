@@ -41,6 +41,11 @@ type Exec struct {
 
 type Status string
 
+type ExperimentStatus struct {
+	ID        string `json:"id"`
+	IsRunning bool   `json:"is_running"`
+}
+
 const (
 	Uninitialized Status = "uninitialized"
 	Ok            Status = "ok"
