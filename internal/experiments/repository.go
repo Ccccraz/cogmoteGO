@@ -33,8 +33,22 @@ func Init() {
 
 // Init experiments json file path
 func (r *Repository) initPaths() {
-	experimentsBaseDir = filepath.Join(xdg.DataHome, "cogmoteGO", "experiments")
+    dataHome := xdg.DataHome
+    experimentsBaseDir = filepath.Join(dataHome, "cogmoteGO", "experiments")
+    
+    if _, err := os.Stat(dataHome); err != nil {
+		logger.Logger.Info("failed to get data home, using default: ")
+        if os.IsPermission(err) || !os.IsExist(err) {
+            dataDirs := xdg.DataDirs
+            if len(dataDirs) > 0 {
+                dataHome = dataDirs[0]
+                experimentsBaseDir = filepath.Join(dataHome, "cogmoteGO", "experiments")
+            }
+        }
+    }
+
 	experimentsJson = filepath.Join(experimentsBaseDir, "experiments.json")
+
 	logger.Logger.Debug(
 		"location of experiments db file: ",
 		slog.Group(
