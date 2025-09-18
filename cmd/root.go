@@ -13,11 +13,10 @@ var (
 	commit   = "test"
 	datetime = "unknown"
 
-	cfgFile string
+	cfgFile     string
 	showVersion bool
 	showVerbose bool
 )
-
 
 var rootCmd = &cobra.Command{
 	Use:   "cogmoteGO",
@@ -34,7 +33,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		service := createService()
+		service, _ := createService()
 		service.Run()
 	},
 }

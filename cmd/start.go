@@ -9,10 +9,10 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "start cogmoteGO service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, _ := createService()
 		err := service.Start()
 		if err != nil {
-		    logger.Logger.Info(err.Error())
+			logger.Logger.Info(err.Error())
 		} else {
 			logger.Logger.Info("Service started")
 		}

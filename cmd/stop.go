@@ -10,10 +10,10 @@ var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "stop cogmoteGO service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, _ := createService()
 		err := service.Stop()
 		if err != nil {
-		    logger.Logger.Info(err.Error())
+			logger.Logger.Info(err.Error())
 		} else {
 			logger.Logger.Info("Service stopped")
 		}

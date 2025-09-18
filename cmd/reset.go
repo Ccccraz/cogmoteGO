@@ -13,7 +13,7 @@ var resetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "quickly reset the service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, _ := createService()
 
 		var needreset bool
 
