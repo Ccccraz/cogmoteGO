@@ -96,12 +96,12 @@ func createService() (service.Service, service.Config) {
 		svcConfig.Option["OnFailureDelayDuration"] = "60s"
 
 	case "linux":
-		svcConfig.Dependencies = []string{
-			"After=network.target",
-		}
 		if usermode {
 			svcConfig.Option["UserService"] = true
 		} else {
+			svcConfig.Dependencies = []string{
+				"After=network.target",
+			}
 		}
 	case "darwin":
 		if usermode {

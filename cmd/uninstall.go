@@ -21,4 +21,5 @@ var uninstallCmd = &cobra.Command{
 
 func init() {
 	serviceCmd.AddCommand(uninstallCmd)
+	uninstallCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
 }

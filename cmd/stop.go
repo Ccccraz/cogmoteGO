@@ -22,4 +22,5 @@ var stopCmd = &cobra.Command{
 
 func init() {
 	serviceCmd.AddCommand(stopCmd)
+	stopCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
 }

@@ -39,4 +39,5 @@ var resetCmd = &cobra.Command{
 
 func init() {
 	serviceCmd.AddCommand(resetCmd)
+	resetCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
 }
