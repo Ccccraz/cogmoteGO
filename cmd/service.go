@@ -21,6 +21,7 @@ import (
 
 var (
 	password string
+	usermode = false
 )
 
 type program struct {
@@ -44,7 +45,14 @@ var serviceCmd = &cobra.Command{
 	Use:   "service",
 	Short: "install cogmoteGO as a service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, config := createService()
+
+		if config.Option["UserService"] != nil || config.UserName != "" {
+			logger.Logger.Info("Installing as user service")
+		} else {
+			logger.Logger.Info("Installing as system service")
+		}
+
 		err := service.Install()
 		if err != nil {
 			logger.Logger.Info(err.Error())
@@ -56,13 +64,14 @@ var serviceCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serviceCmd)
+	serviceCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
+
 	if runtime.GOOS == "windows" {
-		serviceCmd.Flags().StringVarP(&password, "password", "p", "", "install service with password")
-		serviceCmd.MarkFlagRequired("password")
+		serviceCmd.Flags().StringVarP(&password, "password", "p", "", "when installing as user service, provide the password")
 	}
 }
 
-func createService() service.Service {
+func createService() (service.Service, service.Config) {
 	logger.Init(true)
 	options := make(service.KeyValue)
 
@@ -73,29 +82,32 @@ func createService() service.Service {
 		Option:      options,
 	}
 
-	if runtime.GOOS == "windows" {
-		username, err := user.Current()
-		if err != nil {
-			logger.Logger.Info(err.Error())
+	switch runtime.GOOS {
+	case "windows":
+		if usermode {
+			username, err := user.Current()
+			if err != nil {
+				logger.Logger.Info(err.Error())
+			}
+			svcConfig.UserName = username.Username
+			svcConfig.Option["Password"] = password
 		}
-		svcConfig.UserName = username.Username
-
-		svcConfig.Option["Password"] = password
 		svcConfig.Option["OnFailure"] = "restart"
 		svcConfig.Option["OnFailureDelayDuration"] = "60s"
 
-		logger.Logger.Info("Service will be installed as user: " + username.Username)
-	}
-
-	if runtime.GOOS == "linux" {
-		svcConfig.Dependencies = []string{
-			"After=network.target",
+	case "linux":
+		if usermode {
+			svcConfig.Option["UserService"] = true
+		} else {
+			svcConfig.Dependencies = []string{
+				"After=network.target",
+			}
 		}
-		svcConfig.Option["UserService"] = true
-	}
-
-	if runtime.GOOS == "darwin" {
-		svcConfig.Option["UserService"] = true
+	case "darwin":
+		if usermode {
+			svcConfig.Option["UserService"] = true
+		} else {
+		}
 	}
 
 	prg := &program{}
@@ -103,8 +115,7 @@ func createService() service.Service {
 	if err != nil {
 		logger.Logger.Info(err.Error())
 	}
-
-	return s
+	return s, *svcConfig
 }
 
 // Default entry point
@@ -148,7 +159,6 @@ func Serve() {
 	status.RegisterRoutes(api)
 	device.SetVersion(version, commit, datetime)
 	device.RegisterRoutes(api)
-
 
 	r.Run(":9012")
 }

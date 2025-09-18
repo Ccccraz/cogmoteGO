@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
-	"github.com/adrg/xdg"
+	"github.com/Ccccraz/cogmoteGO/internal/mainpath"
 )
 
 var (
@@ -33,8 +33,9 @@ func Init() {
 
 // Init experiments json file path
 func (r *Repository) initPaths() {
-	experimentsBaseDir = filepath.Join(xdg.DataHome, "cogmoteGO", "experiments")
+	experimentsBaseDir = filepath.Join(mainpath.DataPath, "experiments")
 	experimentsJson = filepath.Join(experimentsBaseDir, "experiments.json")
+
 	logger.Logger.Debug(
 		"location of experiments db file: ",
 		slog.Group(
@@ -152,16 +153,17 @@ func (r *Repository) saveJson() {
 	})
 
 	if err := os.MkdirAll(experimentsBaseDir, 0755); err != nil {
-		panic(err)
+		logger.Logger.Debug(fmt.Sprintf("failed to create experiments base dir %s", experimentsBaseDir), slog.Group(logKey, slog.String("id:", err.Error())))
 	}
 
 	file, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		panic(err)
+		logger.Logger.Debug("failed to marshal experiments", slog.Group(logKey, slog.String("id:", err.Error())))
 	}
+
 	err = os.WriteFile(experimentsJson, file, 0644)
 	if err != nil {
-		panic(err)
+		logger.Logger.Debug(fmt.Sprintf("failed to write experiments to file %s", experimentsJson), slog.Group(logKey, slog.String("id:", err.Error())))
 	}
 }
 

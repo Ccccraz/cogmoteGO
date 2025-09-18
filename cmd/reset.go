@@ -13,7 +13,7 @@ var resetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "quickly reset the service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, _ := createService()
 
 		var needreset bool
 
@@ -39,4 +39,5 @@ var resetCmd = &cobra.Command{
 
 func init() {
 	serviceCmd.AddCommand(resetCmd)
+	resetCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
 }

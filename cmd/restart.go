@@ -9,7 +9,7 @@ var restartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "restarts cogmoteGO service",
 	Run: func(cmd *cobra.Command, args []string) {
-		service := createService()
+		service, _ := createService()
 		err := service.Restart()
 		if err != nil {
 			logger.Logger.Info(err.Error())
@@ -21,4 +21,5 @@ var restartCmd = &cobra.Command{
 
 func init() {
 	serviceCmd.AddCommand(restartCmd)
+	restartCmd.Flags().BoolVarP(&usermode, "user", "u", false, "install service as user service")
 }
