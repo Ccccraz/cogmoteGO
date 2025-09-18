@@ -15,6 +15,7 @@
 ## Installation
 
 ### For Linux & macOS
+
 #### By install script
 
 ```sh
@@ -22,6 +23,7 @@ curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | s
 ```
 
 ### For Windows
+
 #### By install script
 
 ```sh
@@ -43,6 +45,34 @@ winget install ccccraz.cogmoteGO
 register the service
 
 ```sh
+sudo cogmoteGO service
+```
+
+start the service
+
+```sh
+sudo cogmoteGO service start
+```
+
+restart the service as user
+
+```sh
+cogmoteGO service -u
+```
+
+start the service as user
+
+```sh
+cogmoteGO service start -u
+```
+
+#### For Windows
+
+register the service
+
+> note: you need to run the command as administrator
+
+```sh
 cogmoteGO service
 ```
 
@@ -52,23 +82,19 @@ start the service
 cogmoteGO service start
 ```
 
-#### For Windows
-
-register the service
-
-> note: you need to run the command as administrator
-
-> note: the password is required
+restart the service as user
+> note: the password is required for running the service as user
 
 ```sh
-cogmoteGO service -p <your_password>
+cogmoteGO service -u -p <your_password>
 ```
 
-start the service
+start the service as user
 
 ```sh
-cogmoteGO service start
+cogmoteGO service start -u
 ```
+
 
 #### For all platforms
 
