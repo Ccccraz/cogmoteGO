@@ -42,6 +42,19 @@ winget install ccccraz.cogmoteGO
 
 #### For Linux & macOS
 
+restart the service as user
+> We recommend that you register cogmoteGO as a user service on Linux
+
+```sh
+cogmoteGO service -u
+```
+
+start the service as user
+
+```sh
+cogmoteGO service start -u
+```
+
 register the service
 
 ```sh
@@ -52,18 +65,6 @@ start the service
 
 ```sh
 sudo cogmoteGO service start
-```
-
-restart the service as user
-
-```sh
-cogmoteGO service -u
-```
-
-start the service as user
-
-```sh
-cogmoteGO service start -u
 ```
 
 #### For Windows
@@ -83,6 +84,7 @@ cogmoteGO service start
 ```
 
 restart the service as user
+
 > note: the password is required for running the service as user
 
 ```sh
@@ -94,7 +96,6 @@ start the service as user
 ```sh
 cogmoteGO service start -u
 ```
-
 
 #### For all platforms
 
