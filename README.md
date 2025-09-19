@@ -105,3 +105,10 @@ for more info about the service, run
 ```sh
 cogmoteGO service --help
 ```
+
+
+#### Test
+
+```sh
+curl --location --request GET 'http://localhost:9012/api/device'
+```
