@@ -31,6 +31,7 @@ irm -Uri 'https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.ps1' 
 ```
 
 #### By winget
+> The winget version is relatively outdated; currently, we recommend installing via a script.
 
 ```sh
 winget install ccccraz.cogmoteGO
