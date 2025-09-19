@@ -16,20 +16,8 @@ $INSTALL_DIR = "$env:LOCALAPPDATA\Programs\$BINARY_NAME"
 $LATEST_RELEASE_URL = "https://api.github.com/repos/$REPO/releases/latest"
 $INSTALLED_CMD = "$INSTALL_DIR\$BINARY_NAME.exe"
 
-# Color definitions
-$RED = "`e[31m"
-$GREEN = "`e[32m"
-$YELLOW = "`e[33m"
-$BLUE = "`e[34m"
-$NC = "`e[0m" # No Color
-
-# Check if ANSI colors are supported
-if ($Host.UI.RawUI -and $Host.UI.RawUI.SupportsVirtualTerminal) {
-    $Host.UI.RawUI.UseVirtualTerminal = $true
-}
-
 # Show title
-Write-Host "${BLUE}=== $BINARY_NAME ===${NC}"
+Write-Host "=== $BINARY_NAME ===" -ForegroundColor Blue
 
 # Get installed version
 function Get-InstalledVersion {
@@ -42,30 +30,30 @@ function Get-InstalledVersion {
 
 $INSTALLED_VERSION = Get-InstalledVersion
 if ($INSTALLED_VERSION) {
-    Write-Host "Installed version: ${GREEN}${INSTALLED_VERSION}${NC}"
+    Write-Host "Installed version: $INSTALLED_VERSION" -ForegroundColor Green
 }
 
 # Get latest version
-Write-Host "${BLUE}[1/4] ${NC}Checking latest version..."
+Write-Host "[1/4] Checking latest version..." -ForegroundColor Blue
 $response = Invoke-RestMethod -Uri $LATEST_RELEASE_URL -Method Get
 $LATEST_RELEASE = $response.tag_name
-Write-Host "Latest version: ${GREEN}${LATEST_RELEASE}${NC}"
+Write-Host "Latest version: $LATEST_RELEASE" -ForegroundColor Green
 
 # Check if installation/update is needed
 if ($INSTALLED_VERSION) {
     if ($INSTALLED_VERSION -eq $LATEST_RELEASE) {
-        Write-Host "${GREEN}Already up to date${NC}"
+        Write-Host "Already up to date" -ForegroundColor Green
         return
     } else {
-        Write-Host "${YELLOW}New version available ${INSTALLED_VERSION} → ${LATEST_RELEASE}${NC}"
+        Write-Host "New version available ${INSTALLED_VERSION} → ${LATEST_RELEASE}" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "${YELLOW}No installation detected, performing fresh install${NC}"
+    Write-Host "No installation detected, performing fresh install" -ForegroundColor Yellow
 }
 
 # Build download URL
 $DOWNLOAD_URL = "https://github.com/$REPO/releases/download/$LATEST_RELEASE/${BINARY_NAME}-windows-amd64-${LATEST_RELEASE}.zip"
-Write-Host "Download URL: ${YELLOW}${DOWNLOAD_URL}${NC}"
+Write-Host "Download URL: $DOWNLOAD_URL" -ForegroundColor Yellow
 
 # Create temporary directory
 $TMP_DIR = Join-Path $env:TEMP "${BINARY_NAME}-$(Get-Date -Format 'yyyyMMddHHmmss')"
@@ -73,16 +61,16 @@ New-Item -ItemType Directory -Path $TMP_DIR -Force | Out-Null
 
 try {
     # Download
-    Write-Host "${BLUE}[2/4] ${NC}Downloading ${BINARY_NAME}..."
+    Write-Host "[2/4] Downloading ${BINARY_NAME}..." -ForegroundColor Blue
     $zipFile = "$TMP_DIR\$BINARY_NAME.zip"
     Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile $zipFile -UseBasicParsing
 
     # Extract
-    Write-Host "${BLUE}[3/4] ${NC}Extracting..."
+    Write-Host "[3/4] Extracting..." -ForegroundColor Blue
     Expand-Archive -Path $zipFile -DestinationPath $TMP_DIR -Force
 
     # Install
-    Write-Host "${BLUE}[4/4] ${NC}Installing to ${INSTALL_DIR}..."
+    Write-Host "[4/4] Installing to ${INSTALL_DIR}..." -ForegroundColor Blue
     if (-not (Test-Path $INSTALL_DIR)) {
         New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
     }
@@ -110,20 +98,20 @@ try {
     # Add to PATH
     $path = [Environment]::GetEnvironmentVariable("PATH", "User")
     if ($path -notlike "*$INSTALL_DIR*") {
-        Write-Host "${YELLOW}Adding ${INSTALL_DIR} to PATH...${NC}"
+        Write-Host "Adding ${INSTALL_DIR} to PATH..." -ForegroundColor Yellow
         [Environment]::SetEnvironmentVariable("PATH", "$path;$INSTALL_DIR", "User")
         # Update current session PATH
         $env:PATH += ";$INSTALL_DIR"
-        Write-Host "${GREEN}Successfully added to PATH${NC}"
+        Write-Host "Successfully added to PATH" -ForegroundColor Green
     }
 
     # Verify installation
     $NEW_VERSION = Get-InstalledVersion
     if ($NEW_VERSION -eq $LATEST_RELEASE) {
         if ($INSTALLED_VERSION) {
-            Write-Host "${GREEN}Update successful! ${BINARY_NAME} updated from ${INSTALLED_VERSION} to ${NEW_VERSION}${NC}"
+            Write-Host "Update successful! ${BINARY_NAME} updated from ${INSTALLED_VERSION} to ${NEW_VERSION}" -ForegroundColor Green
         } else {
-            Write-Host "${GREEN}Installation successful! ${BINARY_NAME} ${NEW_VERSION} (amd64) installed to ${INSTALL_DIR}${NC}"
+            Write-Host "Installation successful! ${BINARY_NAME} ${NEW_VERSION} (amd64) installed to ${INSTALL_DIR}" -ForegroundColor Green
         }
     } else {
         throw "Installation verification failed!"
