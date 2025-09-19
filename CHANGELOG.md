@@ -2,6 +2,286 @@
 
 cogmoteGO change log.
 
+## [unreleased]
+
+### 🚜 Refactor
+
+- :art: fix output format with old powershell (#134) by @Ccccraz in [#134](https://github.com/Ccccraz/cogmoteGO/pull/134)
+
+
+
+## [0.1.24] - 2025-09-11
+
+### 🚀 Features
+
+- :sparkles: Enhance trial data with statistics tracking (#128) by @Ccccraz in [#128](https://github.com/Ccccraz/cogmoteGO/pull/128)
+
+
+### 🚜 Refactor
+
+- :recycle: Move status endpoints to separate module (#127) by @Ccccraz in [#127](https://github.com/Ccccraz/cogmoteGO/pull/127)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.23...v0.1.24
+
+## [0.1.23] - 2025-09-06
+
+### 🚀 Features
+
+- :sparkles: Add experiment status management endpoints (#125) by @Ccccraz in [#125](https://github.com/Ccccraz/cogmoteGO/pull/125)
+
+
+### 🐛 Bug Fixes
+
+- :bug: update CORS config to allow electron origin (#124) by @Ccccraz in [#124](https://github.com/Ccccraz/cogmoteGO/pull/124)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.22...v0.1.23
+
+## [0.1.22] - 2025-08-17
+
+### 🚀 Features
+
+- :sparkles: Add version info to device report (#123) by @Ccccraz in [#123](https://github.com/Ccccraz/cogmoteGO/pull/123)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.21...v0.1.22
+
+## [0.1.21] - 2025-08-14
+
+### 🐛 Bug Fixes
+
+- :bug: update CORS config to allow tauri.localhost origin for windows (#121) by @Ccccraz in [#121](https://github.com/Ccccraz/cogmoteGO/pull/121)
+
+
+### 📚 Documentation
+
+- :pencil2: lost '| sh' part by @Ccccraz
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.20...v0.1.21
+
+## [0.1.20] - 2025-08-14
+
+### 🚀 Features
+
+- :sparkles: Add Windows installer and update README (#117) by @Ccccraz in [#117](https://github.com/Ccccraz/cogmoteGO/pull/117)
+
+- :wrench: Update Windows installer exit behavior (#118) by @Ccccraz in [#118](https://github.com/Ccccraz/cogmoteGO/pull/118)
+
+
+### 🐛 Bug Fixes
+
+- :bug: update CORS config to allow tauri://localhost origin (#120) by @Ccccraz in [#120](https://github.com/Ccccraz/cogmoteGO/pull/120)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.19...v0.1.20
+
+## [0.1.19] - 2025-08-10
+
+### 🚀 Features
+
+- :sparkles: Add tools directory with Python mock data generator (#112) by @Ccccraz in [#112](https://github.com/Ccccraz/cogmoteGO/pull/112)
+
+- :sparkles: Add correct rate calculation to trial data (#114) by @Ccccraz in [#114](https://github.com/Ccccraz/cogmoteGO/pull/114)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.18...v0.1.19
+
+## [0.1.17] - 2025-07-23
+
+### 🚀 Features
+
+- :wrench: Replace kardianos/service with Ccccraz fork and update dependencies (#108) by @Ccccraz in [#108](https://github.com/Ccccraz/cogmoteGO/pull/108)
+
+
+
+## New Contributors
+* @iandol made their first contribution in [#107](https://github.com/Ccccraz/cogmoteGO/pull/107)
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.16...v0.1.17
+
+## [0.1.16] - 2025-07-08
+
+### 🚀 Features
+
+- :sparkles: Add API endpoints for retrieving latest broadcast data (#106) by @Ccccraz in [#106](https://github.com/Ccccraz/cogmoteGO/pull/106)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.15...v0.1.16
+
+## [0.1.15] - 2025-06-21
+
+### 🚀 Features
+
+- :sparkles: Add CORS middleware to allow requests from localhost:1420 (#98) by @Ccccraz in [#98](https://github.com/Ccccraz/cogmoteGO/pull/98)
+
+- :sparkles: Add device routes to display system and hardware information (#102) by @Ccccraz in [#102](https://github.com/Ccccraz/cogmoteGO/pull/102)
+
+- :boom: add /api prefix for all endpoint (#103) by @Ccccraz in [#103](https://github.com/Ccccraz/cogmoteGO/pull/103)
+
+
+### 📚 Documentation
+
+- :memo: add winget (#95) by @Ccccraz in [#95](https://github.com/Ccccraz/cogmoteGO/pull/95)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.14...v0.1.15
+
+## [0.1.14] - 2025-06-15
+
+### 🚀 Features
+
+- :rocket: Add install.sh script for easy deployment and version management (#85) by @Ccccraz in [#85](https://github.com/Ccccraz/cogmoteGO/pull/85)
+
+- :sparkles: Add verbose flag (#88) by @Ccccraz in [#88](https://github.com/Ccccraz/cogmoteGO/pull/88)
+
+- :sparkles: Add macOS AMD64 build target to GitHub workflow (#93) by @Ccccraz in [#93](https://github.com/Ccccraz/cogmoteGO/pull/93)
+
+
+### 🐛 Bug Fixes
+
+- :ambulance: Add compatibility with sh (#86) by @Ccccraz in [#86](https://github.com/Ccccraz/cogmoteGO/pull/86)
+
+- :ambulance: Auto-detect service username and require password parameter (#89) by @Ccccraz in [#89](https://github.com/Ccccraz/cogmoteGO/pull/89)
+
+- :bug: Change serviceCmd password flags from Persistent to local (#91) by @Ccccraz in [#91](https://github.com/Ccccraz/cogmoteGO/pull/91)
+
+
+### 📚 Documentation
+
+- :memo: Add installation and service instructions to README (#92) by @Ccccraz in [#92](https://github.com/Ccccraz/cogmoteGO/pull/92)
+
+
+### ⚙️ Miscellaneous Tasks
+
+- :arrow_up: Upgrade Go version from 1.24.3 to 1.24.4 (#94) (#94) by @Ccccraz in [#94](https://github.com/Ccccraz/cogmoteGO/pull/94)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.13...v0.1.14
+
+## [0.1.13] - 2025-06-14
+
+### 🚀 Features
+
+- :sparkles: added native services for Mac, Linux, and Windows (#83) by @Ccccraz in [#83](https://github.com/Ccccraz/cogmoteGO/pull/83)
+
+- :sparkles: Improve experimental management capabilities (#84) by @Ccccraz in [#84](https://github.com/Ccccraz/cogmoteGO/pull/84)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.12...v0.1.13
+
+## [0.1.12] - 2025-06-06
+
+### 🐛 Bug Fixes
+
+- :ambulance: hotfix timeout problem (#79) by @Ccccraz in [#79](https://github.com/Ccccraz/cogmoteGO/pull/79)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.11...v0.1.12
+
+## [0.1.11] - 2025-06-05
+
+### 🚀 Features
+
+- 🛠️ add systemd service file for running cogmoteGO as a daemon (#75) by @Ccccraz in [#75](https://github.com/Ccccraz/cogmoteGO/pull/75)
+
+
+### 🐛 Bug Fixes
+
+- :bug: Fixed the error that accessing Delete /cmds/proxies for the second time would time out (#77) by @Ccccraz in [#77](https://github.com/Ccccraz/cogmoteGO/pull/77)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.10...v0.1.11
+
+## [0.1.10] - 2025-05-25
+
+### 🚀 Features
+
+- 🐳 add Docker support with multi-stage build (#60) by @Ccccraz in [#60](https://github.com/Ccccraz/cogmoteGO/pull/60)
+
+- :watch: add time benchmarking for command proxy (#62) by @Ccccraz in [#62](https://github.com/Ccccraz/cogmoteGO/pull/62)
+
+- ✨ add availability check and improve timeout  (#63) by @Ccccraz in [#63](https://github.com/Ccccraz/cogmoteGO/pull/63)
+
+
+### 🐛 Bug Fixes
+
+- ⏱️ replace context timeout with socket timeout in handshake process (#66) by @Ccccraz in [#66](https://github.com/Ccccraz/cogmoteGO/pull/66)
+
+- ⏱️ replace context timeout with socket timeout in handshake process (#67) by @Ccccraz in [#67](https://github.com/Ccccraz/cogmoteGO/pull/67)
+
+
+### 🚜 Refactor
+
+- 🔄 simplify release workflow by removing tag message extraction (#68) by @Ccccraz in [#68](https://github.com/Ccccraz/cogmoteGO/pull/68)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.9...v0.1.10
+
+## [0.1.9] - 2025-05-24
+
+### 🐛 Bug Fixes
+
+- :bug: add newline character to version output (#50) by @Ccccraz in [#50](https://github.com/Ccccraz/cogmoteGO/pull/50)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.8...v0.1.9
+
+## [0.1.8] - 2025-05-24
+
+### 🚜 Refactor
+
+- :recycle: standardize API error responses using commonTypes.APIError (#49) by @Ccccraz in [#49](https://github.com/Ccccraz/cogmoteGO/pull/49)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.7...v0.1.8
+
+## [0.1.7] - 2025-05-23
+
+### 🚀 Features
+
+- :sparkles: add slog as new log system (#47) by @Ccccraz in [#47](https://github.com/Ccccraz/cogmoteGO/pull/47)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.6...v0.1.7
+
+## [0.1.6] - 2025-05-23
+
+### 🚀 Features
+
+- :sparkles: add timeout for handshake (5 secs) (#45) by @Ccccraz in [#45](https://github.com/Ccccraz/cogmoteGO/pull/45)
+
+
+### 🐛 Bug Fixes
+
+- :ambulance: fixed crash issue on proxy delete (#44) by @Ccccraz in [#44](https://github.com/Ccccraz/cogmoteGO/pull/44)
+
+
+### 📚 Documentation
+
+- :memo: update readme (#36) by @Ccccraz in [#36](https://github.com/Ccccraz/cogmoteGO/pull/36)
+
+
+
+**Full Changelog**: https://github.com/Ccccraz/cogmoteGO/compare/v0.1.5...v0.1.6
+
 ## [0.1.5] - 2025-05-17
 
 ### 🚀 Features
