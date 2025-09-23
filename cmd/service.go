@@ -12,6 +12,7 @@ import (
 	"github.com/Ccccraz/cogmoteGO/internal/experiments"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
+	"github.com/Ccccraz/cogmoteGO/internal/obs"
 	"github.com/Ccccraz/cogmoteGO/internal/status"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -159,6 +160,7 @@ func Serve() {
 	status.RegisterRoutes(api)
 	device.SetVersion(version, commit, datetime)
 	device.RegisterRoutes(api)
+	obs.RegisterRoutes(api)
 
 	r.Run(":9012")
 }
