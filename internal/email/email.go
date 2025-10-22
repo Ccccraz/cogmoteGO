@@ -1,9 +1,12 @@
 package email
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"strings"
 
+	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
 	"github.com/Ccccraz/cogmoteGO/internal/keyring"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
@@ -12,8 +15,14 @@ import (
 )
 
 type emailPayload struct {
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+	Subject     string            `json:"subject"`
+	HTMLBody    string            `json:"html_body"`
+	Attachments []emailAttachment `json:"attachments"`
+}
+
+type emailAttachment struct {
+	Filename string `json:"filename"`
+	Content  []byte `json:"content"`
 }
 
 type emailConfig struct {
@@ -24,136 +33,114 @@ type emailConfig struct {
 	Recipients []string
 }
 
-type handlerError struct {
-	status      int
-	userMessage string
-	logMessage  string
-	err         error
-	fields      []any
-}
-
-func (e *handlerError) logFields() []any {
-	if e == nil {
-		return nil
-	}
-
-	fields := make([]any, 0, len(e.fields)+2)
-	fields = append(fields, e.fields...)
-	if e.err != nil {
-		fields = append(fields, "err", e.err)
-	}
-
-	return fields
-}
-
-func handleError(c *gin.Context, err *handlerError) bool {
-	if err == nil {
-		return false
-	}
-
-	fields := err.logFields()
-	if len(fields) > 0 {
-		logger.Logger.Error(err.logMessage, fields...)
-	} else {
-		logger.Logger.Error(err.logMessage)
-	}
-
-	c.JSON(err.status, gin.H{"error": err.userMessage})
-	return true
-}
+const logKey = "email"
 
 func PostEmailHandler(c *gin.Context) {
-	payload, err := parseEmailPayload(c)
-	if handleError(c, err) {
+	payload, ok := parseEmailPayload(c)
+	if !ok {
 		return
 	}
 
-	cfg, err := loadEmailConfig()
-	if handleError(c, err) {
+	cfg, ok := loadEmailConfig(c)
+	if !ok {
 		return
 	}
 
-	message, err := buildEmailMessage(cfg, payload)
-	if handleError(c, err) {
+	message, ok := buildEmailMessage(c, cfg, payload)
+	if !ok {
 		return
 	}
 
-	if err := deliverEmail(cfg, message); handleError(c, err) {
+	if !deliverEmail(c, cfg, message) {
 		return
 	}
 
 	c.Status(http.StatusCreated)
 }
 
-func parseEmailPayload(c *gin.Context) (emailPayload, *handlerError) {
+func parseEmailPayload(c *gin.Context) (emailPayload, bool) {
 	var payload emailPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return emailPayload{}, &handlerError{
-			status:      http.StatusBadRequest,
-			userMessage: "invalid email payload",
-			logMessage:  "invalid email request payload",
-			err:         err,
-		}
+		logger.Logger.Error("invalid email payload",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusBadRequest, "invalid email payload", err.Error())
+		return emailPayload{}, false
 	}
 
 	payload.Subject = strings.TrimSpace(payload.Subject)
-	payload.Body = strings.TrimSpace(payload.Body)
+	payload.HTMLBody = strings.TrimSpace(payload.HTMLBody)
 
 	if payload.Subject == "" {
-		return emailPayload{}, &handlerError{
-			status:      http.StatusBadRequest,
-			userMessage: "email subject cannot be empty",
-			logMessage:  "email subject is empty",
+		logger.Logger.Error("email subject cannot be empty")
+		respondError(c, http.StatusBadRequest, "email subject cannot be empty", "")
+		return emailPayload{}, false
+	}
+
+	if payload.HTMLBody == "" {
+		logger.Logger.Error("email body cannot be empty")
+		respondError(c, http.StatusBadRequest, "email body cannot be empty", "")
+		return emailPayload{}, false
+	}
+
+	for idx := range payload.Attachments {
+		payload.Attachments[idx].Filename = strings.TrimSpace(payload.Attachments[idx].Filename)
+		if payload.Attachments[idx].Filename == "" {
+			logger.Logger.Error("attachment filename cannot be empty",
+				slog.Group(logKey,
+					slog.Int("index", idx),
+				),
+			)
+			respondError(c, http.StatusBadRequest, "attachment filename cannot be empty", "")
+			return emailPayload{}, false
+		}
+		if len(payload.Attachments[idx].Content) == 0 {
+			logger.Logger.Error("attachment content cannot be empty",
+				slog.Group(logKey,
+					slog.String("filename", payload.Attachments[idx].Filename),
+				),
+			)
+			respondError(c, http.StatusBadRequest, "attachment content cannot be empty", "")
+			return emailPayload{}, false
 		}
 	}
 
-	if payload.Body == "" {
-		return emailPayload{}, &handlerError{
-			status:      http.StatusBadRequest,
-			userMessage: "email body cannot be empty",
-			logMessage:  "email body is empty",
-		}
-	}
-
-	return payload, nil
+	return payload, true
 }
 
-func loadEmailConfig() (emailConfig, *handlerError) {
+func loadEmailConfig(c *gin.Context) (emailConfig, bool) {
 	emailSection := viper.Sub("email")
 	if emailSection == nil {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "email configuration not found",
-			logMessage:  "email configuration section missing",
-		}
+		logger.Logger.Error("email configuration not found")
+		respondError(c, http.StatusInternalServerError, "email configuration not found", "")
+		return emailConfig{}, false
 	}
 
 	sendEmail := strings.TrimSpace(emailSection.GetString("send_email"))
 	if sendEmail == "" {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "send_email not configured",
-			logMessage:  "send_email is not configured",
-		}
+		logger.Logger.Error("send_email not configured")
+		respondError(c, http.StatusInternalServerError, "send_email not configured", "")
+		return emailConfig{}, false
 	}
 
 	smtpHost := strings.TrimSpace(emailSection.GetString("smtp_host"))
 	if smtpHost == "" {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "smtp_host not configured",
-			logMessage:  "smtp_host is not configured",
-		}
+		logger.Logger.Error("smtp_host not configured")
+		respondError(c, http.StatusInternalServerError, "smtp_host not configured", "")
+		return emailConfig{}, false
 	}
 
 	smtpPort := emailSection.GetInt("smtp_port")
 	if smtpPort <= 0 {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "smtp_port not configured",
-			logMessage:  "smtp_port is not configured or invalid",
-			fields:      []any{"value", smtpPort},
-		}
+		logger.Logger.Error("smtp_port not configured",
+			slog.Group(logKey,
+				slog.Int("value", smtpPort),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "smtp_port not configured", "")
+		return emailConfig{}, false
 	}
 
 	rawRecipients := emailSection.GetStringSlice("send_email_to")
@@ -165,21 +152,20 @@ func loadEmailConfig() (emailConfig, *handlerError) {
 		}
 	}
 	if len(recipients) == 0 {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "send_email_to not configured",
-			logMessage:  "send_email_to is not configured",
-		}
+		logger.Logger.Error("send_email_to not configured")
+		respondError(c, http.StatusInternalServerError, "send_email_to not configured", "")
+		return emailConfig{}, false
 	}
 
 	password, err := keyring.GetPassword(sendEmail)
 	if err != nil {
-		return emailConfig{}, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "email password not found",
-			logMessage:  "failed to retrieve email password",
-			err:         err,
-		}
+		logger.Logger.Error("email password not found",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "email password not found", err.Error())
+		return emailConfig{}, false
 	}
 
 	return emailConfig{
@@ -188,35 +174,52 @@ func loadEmailConfig() (emailConfig, *handlerError) {
 		Host:       smtpHost,
 		Port:       smtpPort,
 		Recipients: recipients,
-	}, nil
+	}, true
 }
 
-func buildEmailMessage(cfg emailConfig, payload emailPayload) (*mail.Msg, *handlerError) {
+func buildEmailMessage(c *gin.Context, cfg emailConfig, payload emailPayload) (*mail.Msg, bool) {
 	message := mail.NewMsg()
 	if err := message.From(cfg.From); err != nil {
-		return nil, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "failed to prepare email",
-			logMessage:  "failed to set email sender",
-			err:         err,
-		}
+		logger.Logger.Error("failed to prepare email",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "failed to prepare email", err.Error())
+		return nil, false
 	}
 
 	if err := message.To(cfg.Recipients...); err != nil {
-		return nil, &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "failed to prepare email",
-			logMessage:  "failed to set email recipient",
-			err:         err,
-		}
+		logger.Logger.Error("failed to prepare email",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "failed to prepare email", err.Error())
+		return nil, false
 	}
 
 	message.Subject(payload.Subject)
-	message.SetBodyString(mail.TypeTextPlain, payload.Body)
-	return message, nil
+
+	message.SetBodyString(mail.TypeTextHTML, payload.HTMLBody)
+
+	for _, attachment := range payload.Attachments {
+		if err := message.AttachReader(attachment.Filename, bytes.NewReader(attachment.Content)); err != nil {
+			logger.Logger.Error("invalid attachment",
+				slog.Group(logKey,
+					slog.String("detail", err.Error()),
+					slog.String("filename", attachment.Filename),
+				),
+			)
+			respondError(c, http.StatusBadRequest, "invalid attachment", err.Error())
+			return nil, false
+		}
+	}
+
+	return message, true
 }
 
-func deliverEmail(cfg emailConfig, message *mail.Msg) *handlerError {
+func deliverEmail(c *gin.Context, cfg emailConfig, message *mail.Msg) bool {
 	client, err := mail.NewClient(
 		cfg.Host,
 		mail.WithPort(cfg.Port),
@@ -225,24 +228,33 @@ func deliverEmail(cfg emailConfig, message *mail.Msg) *handlerError {
 		mail.WithPassword(cfg.Password),
 	)
 	if err != nil {
-		return &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "failed to send email",
-			logMessage:  "failed to create smtp client",
-			err:         err,
-		}
+		logger.Logger.Error("failed to send email",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "failed to send email", err.Error())
+		return false
 	}
 
 	if err := client.DialAndSend(message); err != nil {
-		return &handlerError{
-			status:      http.StatusInternalServerError,
-			userMessage: "failed to send email",
-			logMessage:  "failed to send email",
-			err:         err,
-		}
+		logger.Logger.Error("failed to send email",
+			slog.Group(logKey,
+				slog.String("detail", err.Error()),
+			),
+		)
+		respondError(c, http.StatusInternalServerError, "failed to send email", err.Error())
+		return false
 	}
 
-	return nil
+	return true
+}
+
+func respondError(c *gin.Context, status int, userMessage string, detail string) {
+	c.JSON(status, commonTypes.APIError{
+		Error:  userMessage,
+		Detail: detail,
+	})
 }
 
 func RegisterRoutes(r gin.IRouter) {
