@@ -9,6 +9,7 @@ import (
 	"github.com/Ccccraz/cogmoteGO/internal/broadcast"
 	cmdproxy "github.com/Ccccraz/cogmoteGO/internal/cmdProxy"
 	"github.com/Ccccraz/cogmoteGO/internal/device"
+	"github.com/Ccccraz/cogmoteGO/internal/email"
 	"github.com/Ccccraz/cogmoteGO/internal/experiments"
 	"github.com/Ccccraz/cogmoteGO/internal/health"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
@@ -161,6 +162,7 @@ func Serve() {
 	device.SetVersion(version, commit, datetime)
 	device.RegisterRoutes(api)
 	obs.RegisterRoutes(api)
+	email.RegisterRoutes(api)
 
 	r.Run(":9012")
 }

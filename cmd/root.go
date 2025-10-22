@@ -20,8 +20,15 @@ var (
 	showVerbose bool
 )
 
+type EmailConfig struct {
+	SendEmail   string   `mapstructure:"send_email"`
+	SMTPHost    string   `mapstructure:"smtp_host"`
+	SMTPPort    int      `mapstructure:"smtp_port"`
+	SendEmailTo []string `mapstructure:"send_email_to"`
+}
+
 type Config struct {
-	SendEmail string `mapstructure:"send_email"`
+	Email EmailConfig `mapstructure:"email"`
 }
 
 var appConfig Config
@@ -64,7 +71,10 @@ func init() {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	viper.SetConfigType("toml")
-	viper.SetDefault("send_email", "")
+	viper.SetDefault("email.send_email", "")
+	viper.SetDefault("email.smtp_host", "")
+	viper.SetDefault("email.smtp_port", 0)
+	viper.SetDefault("email.send_email_to", []string{})
 	viper.AutomaticEnv()
 
 	var configPath string
@@ -88,7 +98,10 @@ func initConfig() {
 	}
 
 	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
-		viper.Set("send_email", viper.GetString("send_email"))
+		viper.Set("email.send_email", viper.GetString("email.send_email"))
+		viper.Set("email.smtp_host", viper.GetString("email.smtp_host"))
+		viper.Set("email.smtp_port", viper.GetInt("email.smtp_port"))
+		viper.Set("email.send_email_to", viper.GetStringSlice("email.send_email_to"))
 		if writeErr := viper.WriteConfigAs(configPath); writeErr != nil {
 			fmt.Fprintf(os.Stderr, "failed to create config: %v\n", writeErr)
 			return
