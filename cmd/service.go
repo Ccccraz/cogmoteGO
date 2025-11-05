@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"log/slog"
 	"os"
 	"os/user"
 	"runtime"
@@ -164,5 +165,13 @@ func Serve() {
 	obs.RegisterRoutes(api)
 	email.RegisterRoutes(api)
 
-	r.Run(":9012")
+	err := r.Run(":9012")
+	if err != nil {
+		logger.Logger.Error("failed to start server", "port", 9012, "error", err)
+		logger.Logger.Error("failed to start cogmoteGO: ",
+			slog.Int("port", 9012),
+			slog.String("error", err.Error()),
+		)
+		os.Exit(1)
+	}
 }
