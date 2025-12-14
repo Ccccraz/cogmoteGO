@@ -10,7 +10,7 @@
 
 ## Bindings
 
-- [for matlab](https://github.com/Ccccraz/matmoteGO.git)
+- [for matlab](https://github.com/cagelab/matmoteGO.git)
 
 ## Installation
 
@@ -19,7 +19,7 @@
 #### By install script
 
 ```sh
-curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | sh
+curl -sS https://raw.githubusercontent.com/cagelab/cogmoteGO/main/install.sh | sh
 ```
 
 ### For Windows
@@ -27,7 +27,7 @@ curl -sS https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.sh | s
 #### By install script
 
 ```sh
-irm -Uri 'https://raw.githubusercontent.com/Ccccraz/cogmoteGO/main/install.ps1' | iex
+irm -Uri 'https://raw.githubusercontent.com/cagelab/cogmoteGO/main/install.ps1' | iex
 ```
 
 #### By winget
