@@ -9,7 +9,7 @@
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$REPO = "Ccccraz/cogmoteGO"
+$REPO = "cagelab/cogmoteGO"
 $BINARY_NAME = "cogmoteGO"
 # Changed to user-specific directory
 $INSTALL_DIR = "$env:LOCALAPPDATA\Programs\$BINARY_NAME"
