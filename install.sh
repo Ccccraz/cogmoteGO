@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO="Ccccraz/cogmoteGO"
+REPO="cagelab/cogmoteGO"
 BINARY_NAME="cogmoteGO"
 INSTALL_DIR="$HOME/.local/bin"
 TMP_DIR=$(mktemp -d -t "${BINARY_NAME}-XXXXXX")
