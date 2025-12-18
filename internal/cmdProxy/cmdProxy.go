@@ -7,15 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Ccccraz/cogmoteGO/internal/commonTypes"
+	"github.com/Ccccraz/cogmoteGO/internal/config"
 	"github.com/Ccccraz/cogmoteGO/internal/logger"
 	"github.com/gin-gonic/gin"
 	zmq "github.com/pebbe/zmq4"
 )
 
-// Endpoint is the request body for starting the command proxy
 type Endpoint struct {
 	NickName string `json:"nickname" binding:"required"`
 	Hostname string `json:"hostname" binding:"required"`
@@ -30,38 +32,88 @@ type HandshakeREQ struct {
 	Request string `json:"request"`
 }
 
-// ReqClient is a client for sending requests to the Rep server
 type ReqClient struct {
-	hostname  string
-	port      uint
-	available bool
-	context   *zmq.Context
-	socket    *zmq.Socket
-	mutex     sync.Mutex
+	hostname string
+	port     uint
+
+	available atomic.Bool
+	closed    atomic.Bool
+
+	context *zmq.Context
+	socket  *zmq.Socket
+
+	mutex sync.Mutex
 }
 
 var (
 	reqClientMap      = make(map[string]*ReqClient)
 	reqClientMapMutex sync.RWMutex
 	logKey            = "cmdProxies"
+	cfg               config.Config
 )
 
-// Create a ZeroMQ REQ client
+var (
+	ErrClientClosed       = errors.New("req client closed")
+	ErrClientUnavailable  = errors.New("req client unavailable")
+	ErrMaxRetriesExceeded = errors.New("lazy pirate: max retries exceeded")
+)
+
+func lazyPirateMaxRetries() int {
+	if cfg.Proxy.MaxRetries <= 0 {
+		return 3
+	}
+	return cfg.Proxy.MaxRetries
+}
+
+func lazyPirateRetryInterval() time.Duration {
+	d := time.Duration(cfg.Proxy.RetryInterval)
+	if d <= 0 {
+		return 200 * time.Millisecond
+	}
+	return d
+}
+
+func applyHandshakeTimeouts(s *zmq.Socket) error {
+	if s == nil {
+		return nil
+	}
+	if err := s.SetSndtimeo(time.Duration(cfg.Proxy.HandshakeTimeout) * time.Millisecond); err != nil {
+		return fmt.Errorf("failed to set handshake send timeout: %w", err)
+	}
+	if err := s.SetRcvtimeo(time.Duration(cfg.Proxy.HandshakeTimeout) * time.Millisecond); err != nil {
+		return fmt.Errorf("failed to set handshake recv timeout: %w", err)
+	}
+	return nil
+}
+
+func applyMsgTimeouts(s *zmq.Socket) error {
+	if s == nil {
+		return nil
+	}
+	if err := s.SetSndtimeo(time.Duration(cfg.Proxy.MsgTimeout) * time.Millisecond); err != nil {
+		return fmt.Errorf("failed to set msg send timeout: %w", err)
+	}
+	if err := s.SetRcvtimeo(time.Duration(cfg.Proxy.MsgTimeout) * time.Millisecond); err != nil {
+		return fmt.Errorf("failed to set msg recv timeout: %w", err)
+	}
+	return nil
+}
+
 func createREQ(hostname string, port uint) (*ReqClient, error) {
 	zctx, err := zmq.NewContext()
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context: %w", err)
 	}
 
 	s, err := zctx.NewSocket(zmq.REQ)
 	if err != nil {
+		_ = zctx.Term()
 		return nil, fmt.Errorf("failed to create socket: %w", err)
 	}
 
-	err = s.Connect(fmt.Sprintf("tcp://%s:%d", hostname, port))
-
-	if err != nil {
+	if err := s.Connect(fmt.Sprintf("tcp://%s:%d", hostname, port)); err != nil {
+		_ = s.Close()
+		_ = zctx.Term()
 		return nil, fmt.Errorf("failed to connect to server: %w", err)
 	}
 
@@ -73,51 +125,64 @@ func createREQ(hostname string, port uint) (*ReqClient, error) {
 	}, nil
 }
 
+// Lazy Pirate: on timeout/EFSM, discard REQ socket and recreate it, then retry.
+func (r *ReqClient) recreateSocketLocked() error {
+	if r.closed.Load() {
+		return ErrClientClosed
+	}
+	if r.context == nil {
+		return ErrClientClosed
+	}
+
+	if r.socket != nil {
+		_ = r.socket.Close()
+		r.socket = nil
+	}
+
+	s, err := r.context.NewSocket(zmq.REQ)
+	if err != nil {
+		return fmt.Errorf("failed to recreate socket: %w", err)
+	}
+
+	if err := s.Connect(fmt.Sprintf("tcp://%s:%d", r.hostname, r.port)); err != nil {
+		_ = s.Close()
+		return fmt.Errorf("failed to reconnect to server: %w", err)
+	}
+
+	// Msg timeouts are applied after the initial handshake.
+	if err := applyMsgTimeouts(s); err != nil {
+		_ = s.Close()
+		return err
+	}
+
+	r.socket = s
+	return nil
+}
+
 func (r *ReqClient) handShake() error {
+	if r.closed.Load() {
+		return ErrClientClosed
+	}
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+
+	if r.closed.Load() || r.socket == nil {
+		return ErrClientClosed
+	}
 
 	const (
 		expectedRequest  = "Hello"
 		expectedResponse = "World"
-		handshakeTimeout = 5 * time.Second
-		proxyTimeout     = -1
 	)
 
-	if err := r.socket.SetSndtimeo(handshakeTimeout); err != nil {
-		return fmt.Errorf("failed to set send timeout: %w", err)
+	if err := applyHandshakeTimeouts(r.socket); err != nil {
+		return err
 	}
 
-	if err := r.socket.SetRcvtimeo(proxyTimeout); err != nil {
-		return fmt.Errorf("failed to set receive timeout: %w", err)
-	}
-
-	defer func() {
-		if err := r.socket.SetSndtimeo(proxyTimeout); err != nil {
-			logger.Logger.Error(
-				"Failed to set send timeout",
-				slog.Group(
-					logKey,
-					slog.String("error", err.Error()),
-				))
-		}
-		if err := r.socket.SetRcvtimeo(proxyTimeout); err != nil {
-			logger.Logger.Error(
-				"Failed to set receive timeout",
-				slog.Group(
-					logKey,
-					slog.String("error", err.Error()),
-				))
-		}
-	}()
-
-	// time cost benchmark start mark
 	start := time.Now()
 
-	request := HandshakeREQ{
-		Request: expectedRequest,
-	}
-
+	request := HandshakeREQ{Request: expectedRequest}
 	requestJson, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("failed to marshal handshake request: %w", err)
@@ -129,7 +194,7 @@ func (r *ReqClient) handShake() error {
 
 	msgJson, err := r.socket.RecvBytes(0)
 	if len(msgJson) == 0 {
-		return fmt.Errorf("empty handshake response...")
+		return fmt.Errorf("empty handshake response")
 	} else if err != nil {
 		return fmt.Errorf("failed to receive handshake response: %w", err)
 	}
@@ -143,47 +208,125 @@ func (r *ReqClient) handShake() error {
 		return fmt.Errorf("wrong handshake response: %s", msg.Response)
 	}
 
-	r.available = true
+	r.available.Store(true)
 
-	// time cost benchmark end mark
+	if err := applyMsgTimeouts(r.socket); err != nil {
+		r.available.Store(false)
+		return err
+	}
+
 	elapsed := time.Since(start)
-	logger.Logger.Debug("Handshake completed",
+	logger.Logger.Debug(
+		"Handshake completed",
 		slog.Group(
 			logKey,
 			slog.String("response", msg.Response),
 			slog.String("duration", elapsed.String()),
-		))
+		),
+	)
 
 	return nil
 }
 
-// Send a message to the server and return the response
 func (r *ReqClient) Send(msg []byte) ([]byte, error) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	_, err := r.socket.SendBytes(msg, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send message: %w", err)
+	if r.closed.Load() {
+		return nil, ErrClientClosed
+	}
+	if !r.available.Load() {
+		return nil, ErrClientUnavailable
 	}
 
-	response, err := r.socket.RecvBytes(0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive message: %w", err)
+	maxRetries := lazyPirateMaxRetries()
+	retryInterval := lazyPirateRetryInterval()
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		r.mutex.Lock()
+
+		if r.closed.Load() || r.socket == nil {
+			r.mutex.Unlock()
+			return nil, ErrClientClosed
+		}
+		if !r.available.Load() {
+			r.mutex.Unlock()
+			return nil, ErrClientUnavailable
+		}
+
+		_, err := r.socket.SendBytes(msg, 0)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to send message: %w", err)
+			recoverable := isRecoverableZmqError(err)
+			if recoverable {
+				_ = r.recreateSocketLocked()
+			}
+			r.mutex.Unlock()
+
+			if !recoverable {
+				return nil, lastErr
+			}
+			if attempt < maxRetries-1 {
+				time.Sleep(retryInterval)
+				continue
+			}
+			return nil, fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
+		}
+
+		resp, err := r.socket.RecvBytes(0)
+		if err == nil {
+			r.mutex.Unlock()
+			return resp, nil
+		}
+
+		lastErr = fmt.Errorf("failed to receive message: %w", err)
+		recoverable := isRecoverableZmqError(err)
+		if recoverable {
+			_ = r.recreateSocketLocked()
+		}
+		r.mutex.Unlock()
+
+		if !recoverable {
+			return nil, lastErr
+		}
+		if attempt < maxRetries-1 {
+			time.Sleep(retryInterval)
+			continue
+		}
+		return nil, fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
 	}
 
-	return response, nil
+	if lastErr != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
+	}
+	return nil, ErrMaxRetriesExceeded
 }
 
-// Close the REQ client
+func isRecoverableZmqError(err error) bool {
+	if err == nil {
+		return false
+	}
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		switch zmq.AsErrno(e) {
+		case zmq.Errno(syscall.EAGAIN), zmq.ETIMEDOUT:
+			return true
+		case zmq.EFSM:
+			return true
+		case zmq.ETERM:
+			return false
+		default:
+		}
+	}
+	return false
+}
+
 func (r *ReqClient) Close() error {
+	if !r.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	r.available.Store(false)
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-
-	defer func() {
-		r.socket = nil
-		r.context = nil
-	}()
 
 	var errs []error
 
@@ -191,18 +334,19 @@ func (r *ReqClient) Close() error {
 		if err := r.socket.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close socket: %w", err))
 		}
+		r.socket = nil
 	}
 
 	if r.context != nil {
 		if err := r.context.Term(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to terminate context: %w", err))
 		}
+		r.context = nil
 	}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
-
 	return nil
 }
 
@@ -219,7 +363,6 @@ func GetAllCmdProxies(c *gin.Context) {
 	}
 
 	var reqClientInfos []Endpoint
-
 	for nickname, reqClient := range reqClientMap {
 		reqClientInfos = append(reqClientInfos, Endpoint{
 			NickName: nickname,
@@ -231,10 +374,8 @@ func GetAllCmdProxies(c *gin.Context) {
 	c.JSON(http.StatusOK, reqClientInfos)
 }
 
-// Create a REQ client
 func createCmdProxy(c *gin.Context) {
 	var endpoint Endpoint
-
 	if err := c.ShouldBindJSON(&endpoint); err != nil {
 		c.JSON(http.StatusBadRequest, commonTypes.APIError{
 			Error:  "invalid proxy endpoint",
@@ -246,7 +387,6 @@ func createCmdProxy(c *gin.Context) {
 	reqClientMapMutex.RLock()
 	_, exist := reqClientMap[endpoint.NickName]
 	reqClientMapMutex.RUnlock()
-
 	if exist {
 		c.JSON(http.StatusConflict, commonTypes.APIError{
 			Error:  fmt.Sprintf("command proxy %s already started", endpoint.NickName),
@@ -257,7 +397,6 @@ func createCmdProxy(c *gin.Context) {
 
 	client, err := createREQ(endpoint.Hostname, endpoint.Port)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
 			Error:  fmt.Sprintf("failed to create command proxy %s", endpoint.NickName),
 			Detail: err.Error(),
@@ -276,10 +415,9 @@ func createCmdProxy(c *gin.Context) {
 	)
 
 	reqClientMapMutex.Lock()
-	defer reqClientMapMutex.Unlock()
-
 	if _, exist := reqClientMap[endpoint.NickName]; exist {
-		client.Close()
+		reqClientMapMutex.Unlock()
+		_ = client.Close()
 		c.JSON(http.StatusConflict, commonTypes.APIError{
 			Error:  fmt.Sprintf("command proxy %s already started", endpoint.NickName),
 			Detail: "",
@@ -287,34 +425,27 @@ func createCmdProxy(c *gin.Context) {
 		return
 	}
 	reqClientMap[endpoint.NickName] = client
+	reqClientMapMutex.Unlock()
 
-	go func() {
-		if err := client.handShake(); err != nil {
-			reqClientMapMutex.Lock()
-			if _, exist := reqClientMap[endpoint.NickName]; exist {
-				client.socket.Close()
-				delete(reqClientMap, endpoint.NickName)
-			}
-			reqClientMapMutex.Unlock()
-
+	go func(nick string, cl *ReqClient) {
+		if err := cl.handShake(); err != nil {
 			logger.Logger.Error(
 				"handshake failed: ",
 				slog.Group(
 					logKey,
-					slog.String("nickname", endpoint.NickName),
+					slog.String("nickname", nick),
 					slog.String("error", err.Error()),
-				))
+				),
+			)
+			_ = destroyReqClient(nick, cl)
 		}
-	}()
+	}(endpoint.NickName, client)
 
 	c.Status(http.StatusCreated)
 }
 
-// Forward a command to the server and return the response
 func sendCmd(c *gin.Context) {
-	// time cost benchmark start mark
 	handleStart := time.Now()
-
 	nickname := c.Param("nickname")
 
 	reqClientMapMutex.RLock()
@@ -328,14 +459,12 @@ func sendCmd(c *gin.Context) {
 		})
 		logger.Logger.Error(
 			"command proxy not found: ",
-			slog.Group(
-				logKey,
-				slog.String("nickname", nickname),
-			))
+			slog.Group(logKey, slog.String("nickname", nickname)),
+		)
 		return
 	}
 
-	if !reqClient.available {
+	if !reqClient.available.Load() || reqClient.closed.Load() {
 		c.JSON(http.StatusServiceUnavailable, commonTypes.APIError{
 			Error:  fmt.Sprintf("command proxy %s is not available", nickname),
 			Detail: "",
@@ -346,7 +475,8 @@ func sendCmd(c *gin.Context) {
 				logKey,
 				slog.String("nickname", nickname),
 				slog.String("error", "command proxy is not available"),
-			))
+			),
+		)
 		return
 	}
 
@@ -358,10 +488,8 @@ func sendCmd(c *gin.Context) {
 		})
 		logger.Logger.Error(
 			"cannot get command data from request body: ",
-			slog.Group(
-				logKey,
-				slog.String("nickname", nickname),
-			))
+			slog.Group(logKey, slog.String("nickname", nickname)),
+		)
 		return
 	}
 	handleElapsed := time.Since(handleStart)
@@ -369,6 +497,31 @@ func sendCmd(c *gin.Context) {
 	sendStart := time.Now()
 	result, err := reqClient.Send(cmd)
 	if err != nil {
+		if errors.Is(err, ErrClientClosed) || errors.Is(err, ErrClientUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, commonTypes.APIError{
+				Error:  fmt.Sprintf("command proxy %s is not available", nickname),
+				Detail: err.Error(),
+			})
+			return
+		}
+
+		if errors.Is(err, ErrMaxRetriesExceeded) || isTimeoutError(err) {
+			logger.Logger.Error(
+				"command proxy timed out (lazy pirate retries exhausted), destroying req client",
+				slog.Group(
+					logKey,
+					slog.String("nickname", nickname),
+					slog.String("detail", err.Error()),
+				),
+			)
+			_ = destroyReqClient(nickname, reqClient)
+			c.JSON(http.StatusGatewayTimeout, commonTypes.APIError{
+				Error:  fmt.Sprintf("command proxy %s timed out", nickname),
+				Detail: err.Error(),
+			})
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
 			Error:  fmt.Sprintf("failed to send command to command proxy %s", nickname),
 			Detail: err.Error(),
@@ -379,66 +532,58 @@ func sendCmd(c *gin.Context) {
 				logKey,
 				slog.String("nickname", nickname),
 				slog.String("detail", err.Error()),
-			))
+			),
+		)
 		return
 	}
 
 	sendElapsed := time.Since(sendStart)
-	logger.Logger.Debug("command send success: ",
+	logger.Logger.Debug(
+		"command send success: ",
 		slog.Group(
 			logKey,
 			slog.String("nickname", nickname),
 			slog.String("handleDuration", handleElapsed.String()),
 			slog.String("sendDuration", sendElapsed.String()),
-		))
+		),
+	)
 
 	c.Data(http.StatusCreated, "application/json", result)
 }
 
 func DeleteAllCmdProxies(c *gin.Context) {
 	reqClientMapMutex.Lock()
-	defer reqClientMapMutex.Unlock()
 
-	// if reqClientMap is empty, return directly
 	if len(reqClientMap) == 0 {
+		reqClientMapMutex.Unlock()
 		c.Status(http.StatusOK)
 		return
 	}
 
-	// Create a copy of clients to close them outside the lock
-	clients := make([]*ReqClient, 0, len(reqClientMap))
-	for _, client := range reqClientMap {
-		clients = append(clients, client)
+	snapshot := make(map[string]*ReqClient, len(reqClientMap))
+	for nick, client := range reqClientMap {
+		snapshot[nick] = client
 	}
 
-	// Clear the map
 	reqClientMap = make(map[string]*ReqClient)
 	reqClientMapMutex.Unlock()
 
-	// Close all clients outside the lock
 	var (
 		wg     sync.WaitGroup
 		errs   []error
 		errMux sync.Mutex
 	)
 
-	for _, client := range clients {
+	for nick, client := range snapshot {
 		wg.Add(1)
-		go func(c *ReqClient) {
+		go func(n string, cl *ReqClient) {
 			defer wg.Done()
-			if err := c.Close(); err != nil {
-				logger.Logger.Error(
-					"failed to close client: ",
-					slog.Group(
-						logKey,
-						slog.String("error", err.Error()),
-					),
-				)
+			if err := destroyReqClient(n, cl); err != nil {
 				errMux.Lock()
 				errs = append(errs, err)
 				errMux.Unlock()
 			}
-		}(client)
+		}(nick, client)
 	}
 	wg.Wait()
 
@@ -447,6 +592,7 @@ func DeleteAllCmdProxies(c *gin.Context) {
 			Error:  "failed to close some clients",
 			Detail: errors.Join(errs...).Error(),
 		})
+		return
 	}
 
 	c.Status(http.StatusOK)
@@ -474,11 +620,7 @@ func DeleteCmdProxy(c *gin.Context) {
 		return
 	}
 
-	reqClientMapMutex.Lock()
-	defer reqClientMapMutex.Unlock()
-	delete(reqClientMap, nickname)
-
-	if err := client.Close(); err != nil {
+	if err := destroyReqClient(nickname, client); err != nil {
 		c.JSON(http.StatusInternalServerError, commonTypes.APIError{
 			Error:  fmt.Sprintf("failed to close command proxy %s", nickname),
 			Detail: err.Error(),
@@ -489,7 +631,49 @@ func DeleteCmdProxy(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func RegisterRoutes(r gin.IRouter) {
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		switch zmq.AsErrno(e) {
+		case zmq.Errno(syscall.EAGAIN), zmq.ETIMEDOUT:
+			return true
+		default:
+		}
+	}
+	return false
+}
+
+func destroyReqClient(nickname string, client *ReqClient) error {
+	if client == nil {
+		return nil
+	}
+
+	client.available.Store(false)
+
+	reqClientMapMutex.Lock()
+	if stored, exist := reqClientMap[nickname]; exist && stored == client {
+		delete(reqClientMap, nickname)
+	}
+	reqClientMapMutex.Unlock()
+
+	if err := client.Close(); err != nil {
+		logger.Logger.Error(
+			"failed to close command proxy client",
+			slog.Group(
+				logKey,
+				slog.String("nickname", nickname),
+				slog.String("error", err.Error()),
+			),
+		)
+		return err
+	}
+	return nil
+}
+
+func RegisterRoutes(r gin.IRouter, config config.Config) {
+	cfg = config
 	r.GET("/cmds/proxies", GetAllCmdProxies)
 	r.POST("/cmds/proxies", createCmdProxy)
 	r.POST("/cmds/proxies/:nickname", sendCmd)
