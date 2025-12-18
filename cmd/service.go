@@ -155,7 +155,7 @@ func Serve() {
 	api := r.Group("/api")
 
 	broadcast.RegisterRoutes(api)
-	cmdproxy.RegisterRoutes(api)
+	cmdproxy.RegisterRoutes(api, Config)
 	health.RegisterRoutes(api)
 	alive.RegisterRoutes(api)
 	experiments.RegisterRoutes(api)

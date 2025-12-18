@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/Ccccraz/cogmoteGO/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -16,22 +14,10 @@ var (
 	datetime = "unknown"
 
 	cfgFile     string
+	Config      config.Config
 	showVersion bool
 	showVerbose bool
 )
-
-type EmailConfig struct {
-	SendEmail   string   `mapstructure:"send_email"`
-	SMTPHost    string   `mapstructure:"smtp_host"`
-	SMTPPort    int      `mapstructure:"smtp_port"`
-	SendEmailTo []string `mapstructure:"send_email_to"`
-}
-
-type Config struct {
-	Email EmailConfig `mapstructure:"email"`
-}
-
-var appConfig Config
 
 var rootCmd = &cobra.Command{
 	Use:   "cogmoteGO",
@@ -70,53 +56,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	viper.SetConfigType("toml")
-	viper.SetDefault("email.send_email", "")
-	viper.SetDefault("email.smtp_host", "")
-	viper.SetDefault("email.smtp_port", 0)
-	viper.SetDefault("email.send_email_to", []string{})
-	viper.AutomaticEnv()
-
-	var configPath string
-
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-		configPath = cfgFile
-	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to resolve home directory: %v\n", err)
-			return
-		}
-		configPath = filepath.Join(home, ".config", "cogmoteGO", "config.toml")
-		viper.SetConfigFile(configPath)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create config directory: %v\n", err)
-		return
-	}
-
-	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
-		viper.Set("email.send_email", viper.GetString("email.send_email"))
-		viper.Set("email.smtp_host", viper.GetString("email.smtp_host"))
-		viper.Set("email.smtp_port", viper.GetInt("email.smtp_port"))
-		viper.Set("email.send_email_to", viper.GetStringSlice("email.send_email_to"))
-		if writeErr := viper.WriteConfigAs(configPath); writeErr != nil {
-			fmt.Fprintf(os.Stderr, "failed to create config: %v\n", writeErr)
-			return
-		}
-	} else if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to check config file: %v\n", err)
-		return
-	} else if err := viper.ReadInConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read config: %v\n", err)
-		return
-	}
-
-	if err := viper.Unmarshal(&appConfig); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to parse config: %v\n", err)
-	}
+	Config = config.LoadConfig(cfgFile)
 }
 
 func printVersion() {
